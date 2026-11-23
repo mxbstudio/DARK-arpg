@@ -2,7 +2,7 @@
 
 Ein extrem düsteres Action-RPG für den PC im Stil von Diablo – **kein Horror**, sondern drückende, bedrohliche Atmosphäre. Die Spielstruktur folgt dem Run-Prinzip von Hades: kurze, abgeschlossene Durchläufe mit Fortschritt zwischen den Runs.
 
-> Status: frühe Konzeptphase. Engine und Tech-Stack sind noch offen.
+> Status: erster spielbarer Prototyp (Godot 4.7, GDScript). Grafik und Sound sind Platzhalter.
 
 ## Kernideen
 
@@ -36,17 +36,63 @@ Ein extrem düsteres Action-RPG für den PC im Stil von Diablo – **kein Horror
 | Perspektive | Top-down 2D |
 | Ton | Extrem düster, kein Horror |
 | Spielstruktur | Run-basiert (Hades-artig) |
-| Engine | offen |
+| Engine | Godot 4.7 (GDScript, Renderer: GL Compatibility) |
 | Sprache der Doku | Deutsch (Code/Identifier Englisch) |
 
-## Repository
+## Prototyp starten
 
-Aktuell enthält das Repository nur die Projektdokumentation. Struktur und Build-Anleitung folgen, sobald die Engine festgelegt ist.
+1. [Godot 4.7](https://godotengine.org/download) herunterladen (kostenlos, Standard-Version, nicht .NET).
+2. Godot öffnen → **Importieren** → `project.godot` aus diesem Repository wählen.
+3. **F5** startet das Spiel. Kopfhörer empfohlen.
+
+Alternativ per Kommandozeile: `godot --path .`
+
+### Steuerung
+
+| Taste | Aktion |
+|---|---|
+| WASD | Bewegen |
+| Maus | Zielen |
+| Linksklick | Schlag (Ausholen → Treffer → Erholung) |
+| Leertaste / Rechtsklick | Ausweichen (kurz unverwundbar) |
+| F | Fackel an/aus |
+| T | Rüstung wechseln Leder ↔ Platte (nur im Prototyp) |
+| E | Treppe hinabsteigen |
+| R | Neuer Lauf nach dem Tod |
+| H | Hilfe ein/aus |
+
+### Was der Prototyp zeigt
+
+- **Dunkelheit**: Fast alles ist schwarz. Fackel (größerer, warmer Lichtradius) oder ohne Fackel (winziger, kalter Radius). Wände werfen echte Schatten.
+- **Akustik**: Gegner sind über positionsbezogenen Sound hörbar (Schritte mit Krallenscharren, Atmen), bevor man sie sieht. Geräusche hinter Wänden klingen gedämpft. Die Treppe nach unten erkennt man an einem kalten Luftzug, Kohlebecken knistern.
+- **Lärm als Mechanik**: Eigene Schritte, Schläge und Ausweichrollen erzeugen Lärm, den Gegner hören. Plattenrüstung schützt deutlich besser, ist aber etwa dreimal so weit hörbar und macht langsamer. Ein Knurren signalisiert, dass man gehört wurde.
+- **Kampf**: Langsame Schläge mit Ausholphase, Ausdauerkosten und Erholung. Ghule kündigen Angriffe mit einem anschwellenden Knurren an, das genau beim Zuschlagen gipfelt. Während des Angriffs sind sie nicht unterbrechbar, danach verwundbar.
+- **Run-Struktur**: Zufallsgenerierte Ebenen, jede Tiefe mehr Gegner. Tod beendet den Lauf. Meta-Fortschritt (Läufe, beste Tiefe, Asche als Währung) wird gespeichert, kann aber noch nicht ausgegeben werden.
+
+Alle Sounds werden zur Laufzeit synthetisiert (keine externen Assets).
+
+## Projektstruktur
+
+```
+project.godot          Godot-Projekt
+data/balance.json      Alle Gameplay-Werte (Schaden, Lautstärke, Sicht, Tempo …)
+scenes/main.tscn       Startszene
+scripts/
+  main.gd              Run-Steuerung: Ebenen bauen, Tiefe, Tod, Neustart
+  autoload/            Balance (Werte), Events (Lärm-Signal), Game (Input, Meta-Save), Sfx (Sound-Synthese)
+  world/               Level-Generator, Treppe, Kohlebecken
+  actors/              Spieler, Gegner (Ghul)
+  ui/                  HUD
+  util/                Licht-Helfer
+tests/                 Headless-Tests
+```
+
+Tests: `godot --headless --path . -s res://tests/run_tests.gd`
 
 ## Offene Punkte
 
-- Engine / Tech-Stack
-- Kamera- und Rendering-Ansatz für die eingeschränkte Sicht (Licht, Sichtkegel, Fog of War)
-- Audio-Middleware (z. B. FMOD/Wwise oder engine-eigene Lösung)
-- Klassen, Fähigkeiten und Ausrüstungssystem
+- Meta-Progression: Asche ausgeben (Upgrades, Startausrüstung)
+- Rüstung, Waffen und Fähigkeiten als Beute bzw. Auswahl im Lauf statt Umschalten per Taste
+- Weitere Gegnertypen (z. B. lautlose Jäger, Gegner, die Licht meiden oder anziehen)
+- Echte Grafik und Sounds, ggf. Audio-Middleware (FMOD/Wwise) für Hall und Okklusion
 - Setting, Name und Story

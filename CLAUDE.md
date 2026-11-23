@@ -2,9 +2,25 @@
 
 Extrem düsteres Top-down-2D-Action-RPG (Diablo-artig, kein Horror, Run-Struktur wie Hades) für den PC. Details: `README.md`.
 
-## Status
-- Engine/Tech-Stack ist **noch nicht festgelegt**. Keine Engine-spezifischen Annahmen treffen, keine Engine-Dateien oder Projektgerüste anlegen, ohne vorher nachzufragen.
-- Sobald die Engine feststeht: Build-/Test-/Run-Befehle und Projektstruktur hier ergänzen.
+## Tech-Stack
+- **Godot 4.7** (Standard-Build, kein .NET), **GDScript** mit statischer Typisierung, Renderer **GL Compatibility**.
+- Keine Plugins/Addons oder C# ohne Rücksprache.
+
+## Befehle
+- Spiel starten: `godot --path .`
+- Tests (müssen vor jedem Commit grün sein): `godot --headless --path . -s res://tests/run_tests.gd` (Exit-Code 0 = ok)
+- Smoke-Test des Hauptspiels: `godot --headless --path . --quit-after 600` – Ausgabe darf kein `SCRIPT ERROR`/`ERROR` enthalten.
+- Nach neuen Skripten/Assets einmal `godot --headless --path . --import` ausführen und die erzeugten `.uid`-/`.import`-Dateien mit committen.
+
+## Projektstruktur & Konventionen
+- `data/balance.json`: **alle** Gameplay-Werte. Zugriff über das Autoload `Balance.section("...")`. Neue Werte hier eintragen, nicht im Code.
+- Autoloads (`scripts/autoload/`): `Balance` (Werte), `Events` (Signal-Bus, u. a. `noise_emitted`), `Game` (Input-Map, Meta-Save in `user://meta.cfg`), `Sfx` (Sound-Synthese und Abspielen).
+- Node-Aufbau erfolgt aktuell im Code (`*.new()`), Szenen nur für den Einstieg (`scenes/main.tscn`). Klassen mit `class_name` benennen.
+- Lärm, den die KI hören soll, immer über `Events.noise_emitted` senden; hörbare Sounds positionsbezogen über `Sfx.play_at`/`Sfx.play_on` abspielen.
+- Kollisionsebenen: 1 = Wände, 2 = Spieler, 3 (Wert 4) = Gegner.
+- Lauf-Zustand (Tiefe, Ebene, HP) lebt in `main.gd` bzw. den Akteuren und wird pro Lauf zurückgesetzt; persistenter Meta-Zustand nur in `Game`.
+- Sounds und Grafik sind Platzhalter (prozedural). Beim späteren Export muss `data/*.json` in den Export-Filter für Nicht-Ressourcen-Dateien.
+- Tests in `tests/test_suite.gd` ergänzen; der Runner `tests/run_tests.gd` lädt die Suite zur Laufzeit, damit Autoloads verfügbar sind.
 
 ## Design-Säulen (bei jeder Entscheidung beachten)
 1. **Eingeschränkte Sicht**: Dunkelheit ist der Normalzustand. Nichts darf den Sichtradius oder die Dunkelheit aufweichen (keine Minimap-Aufdeckung, keine globale Beleuchtung ohne Rücksprache).
@@ -15,7 +31,7 @@ Extrem düsteres Top-down-2D-Action-RPG (Diablo-artig, kein Horror, Run-Struktur
 
 ## Arbeitsregeln
 - **Sprache**: Dokumentation, Commit-Nachrichten und Kommunikation auf Deutsch; Code, Identifier und Code-Kommentare auf Englisch.
-- **Bei fehlenden Infos nachfragen**, statt Annahmen zu Engine, Gameplay-Werten oder Scope zu treffen.
+- **Bei fehlenden Infos nachfragen**, statt Annahmen zu Gameplay-Werten oder Scope zu treffen.
 - **Datengetrieben**: Gameplay-Werte (Schaden, Lautstärke, Sichtradius, Cooldowns, Drop-Raten) in Daten-/Konfigdateien, nicht im Code verstreut.
 - **Kleine, fokussierte Änderungen**; keine unnötigen Refactorings oder Features außerhalb der Aufgabe.
 - **Keine Assets mit unklarer Lizenz** einchecken; Herkunft und Lizenz von Assets dokumentieren.

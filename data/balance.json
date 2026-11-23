@@ -1,0 +1,110 @@
+{
+	"player": {
+		"max_hp": 100,
+		"max_stamina": 100,
+		"stamina_regen": 26,
+		"stamina_regen_delay": 0.6,
+		"speed": 115,
+		"step_length": 34,
+		"attack": {
+			"damage": 34,
+			"windup": 0.24,
+			"active": 0.12,
+			"recovery": 0.4,
+			"reach": 36,
+			"arc_deg": 110,
+			"stamina_cost": 24,
+			"lunge_speed": 90,
+			"noise_radius": 160
+		},
+		"dodge": {
+			"duration": 0.32,
+			"speed": 250,
+			"iframes": 0.24,
+			"stamina_cost": 30,
+			"noise_mult": 1.2
+		}
+	},
+	"armor": {
+		"leather": {
+			"name": "Leder",
+			"damage_reduction": 0.1,
+			"speed_mult": 1.0,
+			"step_noise_radius": 90,
+			"step_volume_db": -16
+		},
+		"plate": {
+			"name": "Platte",
+			"damage_reduction": 0.45,
+			"speed_mult": 0.85,
+			"step_noise_radius": 280,
+			"step_volume_db": -5
+		}
+	},
+	"vision": {
+		"ambient": [0.012, 0.012, 0.018],
+		"camera_zoom": 2.0,
+		"torch_radius_px": 140,
+		"torch_energy": 1.15,
+		"torch_color": [1.0, 0.72, 0.45],
+		"dark_radius_px": 52,
+		"dark_energy": 0.4,
+		"dark_color": [0.55, 0.6, 0.75],
+		"brazier_radius_px": 95,
+		"brazier_energy": 0.9,
+		"enemy_sight_torch_px": 230,
+		"enemy_sight_dark_px": 70,
+		"enemy_alert_sight_mult": 1.4
+	},
+	"audio": {
+		"occluded_db": -9.0,
+		"enemy_step_db": -6.0,
+		"enemy_step_audible_px": 460,
+		"breath_db": -10.0,
+		"breath_audible_px": 300,
+		"growl_db": 0.0,
+		"growl_audible_px": 520,
+		"alert_db": -6.0,
+		"heard_db": -12.0,
+		"ambient_drone_db": -22.0,
+		"exit_wind_db": -8.0,
+		"exit_wind_audible_px": 800,
+		"brazier_fire_db": -14.0,
+		"brazier_fire_audible_px": 380
+	},
+	"enemies": {
+		"ghoul": {
+			"max_hp": 120,
+			"radius": 10,
+			"speed_wander": 32,
+			"speed_investigate": 55,
+			"speed_chase": 92,
+			"damage": 24,
+			"attack_range": 30,
+			"windup": 0.75,
+			"active": 0.16,
+			"recovery": 0.9,
+			"lunge_speed": 240,
+			"stagger": 0.35,
+			"hearing_mult": 1.0,
+			"hearing_occluded_mult": 0.6,
+			"lose_sight_after": 3.0,
+			"step_interval": 0.42,
+			"breath_interval": [2.5, 5.5]
+		}
+	},
+	"run": {
+		"map_w": 56,
+		"map_h": 40,
+		"cell": 32,
+		"rooms_min": 7,
+		"rooms_max": 11,
+		"enemies_base": 4,
+		"enemies_per_depth": 2,
+		"spawn_min_dist_cells": 9,
+		"braziers_min": 1,
+		"braziers_max": 3,
+		"heal_on_descend": 0.25,
+		"ash_per_depth": 10
+	}
+}
