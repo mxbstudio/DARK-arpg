@@ -3,9 +3,13 @@ extends Node
 ## Gameplay-relevant sounds are positional (AudioStreamPlayer2D) so direction and
 ## distance can be read by ear. Sounds behind walls are muffled (quieter).
 
+signal loading_progress(fraction: float)
+signal finished_loading
+
 const RATE := 22050
 const WALL_MASK := 1
 
+var loaded := false
 var _cache: Dictionary = {}  # name -> Array of AudioStreamWAV variants
 var _rng := RandomNumberGenerator.new()
 var _occluded_db := -9.0
@@ -14,22 +18,42 @@ var _occluded_db := -9.0
 func _ready() -> void:
 	_rng.randomize()
 	_occluded_db = float(Balance.section("audio")["occluded_db"])
+	_synthesize()
+
+
+## Synthesizes all sounds, yielding a frame between them so the page/window stays
+## responsive (important on slow web/mobile runtimes). Emits `finished_loading` when done.
+func _synthesize() -> void:
 	var growl_len := float(Balance.section("enemies")["ghoul"]["windup"])
-	_cache["step_soft"] = [_step_soft(), _step_soft(), _step_soft()]
-	_cache["step_plate"] = [_step_plate(), _step_plate(), _step_plate()]
-	_cache["enemy_step"] = [_enemy_step(), _enemy_step(), _enemy_step()]
-	_cache["breath"] = [_breath(), _breath()]
-	_cache["growl"] = [_growl(growl_len, true), _growl(growl_len, true)]
-	_cache["alert"] = [_growl(0.35, false), _growl(0.35, false)]
-	_cache["swing"] = [_swing(), _swing()]
-	_cache["hit"] = [_hit(85.0, 500.0), _hit(95.0, 550.0)]
-	_cache["player_hurt"] = [_hit(120.0, 900.0)]
-	_cache["enemy_death"] = [_enemy_death()]
-	_cache["dodge"] = [_dodge(), _dodge()]
-	_cache["descend"] = [_descend()]
-	_cache["wind"] = [_wind()]
-	_cache["drone"] = [_drone()]
-	_cache["fire"] = [_fire()]
+	var jobs: Array[Array] = [
+		["step_soft", _step_soft, 3],
+		["step_plate", _step_plate, 3],
+		["enemy_step", _enemy_step, 3],
+		["breath", _breath, 2],
+		["growl", _growl.bind(growl_len, true), 2],
+		["alert", _growl.bind(0.35, false), 2],
+		["swing", _swing, 2],
+		["hit", _hit.bind(85.0, 500.0), 1],
+		["hit", _hit.bind(95.0, 550.0), 1],
+		["player_hurt", _hit.bind(120.0, 900.0), 1],
+		["enemy_death", _enemy_death, 1],
+		["dodge", _dodge, 2],
+		["descend", _descend, 1],
+		["wind", _wind, 1],
+		["drone", _drone, 1],
+		["fire", _fire, 1],
+	]
+	for idx in jobs.size():
+		var job := jobs[idx]
+		var maker: Callable = job[1]
+		for i in int(job[2]):
+			if not _cache.has(job[0]):
+				_cache[job[0]] = []
+			(_cache[job[0]] as Array).append(maker.call())
+		loading_progress.emit(float(idx + 1) / jobs.size())
+		await get_tree().process_frame
+	loaded = true
+	finished_loading.emit()
 
 
 ## Returns a random variant of a named sound.

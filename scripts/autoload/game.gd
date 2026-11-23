@@ -7,11 +7,39 @@ var total_runs := 0
 var best_depth := 0
 ## Meta currency earned per run. Spending it is not implemented yet.
 var ash := 0
+## True while the player is using a touchscreen (switches off on keyboard/mouse input).
+var touch_mode := false
+
+signal touch_mode_changed(active: bool)
 
 
 func _ready() -> void:
 	_setup_input()
 	load_meta()
+	touch_mode = _starts_in_touch_mode()
+	_apply_content_scale()
+
+
+func _starts_in_touch_mode() -> bool:
+	return OS.has_feature("android") or OS.has_feature("ios") or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
+
+
+## Phones have small screens: render the UI at a smaller virtual resolution so it appears larger.
+func _apply_content_scale() -> void:
+	var size := Vector2i(1280, 720)
+	if touch_mode:
+		var v: Array = Balance.section("touch")["content_scale"]
+		size = Vector2i(int(v[0]), int(v[1]))
+	get_window().content_scale_size = size
+
+
+func _input(event: InputEvent) -> void:
+	var touch := event is InputEventScreenTouch or event is InputEventScreenDrag
+	var desktop := event is InputEventKey or event is InputEventMouseButton
+	if (touch and not touch_mode) or (desktop and touch_mode and not _starts_in_touch_mode()):
+		touch_mode = touch
+		_apply_content_scale()
+		touch_mode_changed.emit(touch_mode)
 
 
 func record_run(depth: int) -> int:

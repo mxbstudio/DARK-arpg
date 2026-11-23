@@ -31,7 +31,7 @@ Ein extrem düsteres Action-RPG für den PC im Stil von Diablo – **kein Horror
 
 | Punkt | Entscheidung |
 |---|---|
-| Plattform | PC |
+| Plattform | PC, zusätzlich Web-Version für den Handy-Browser |
 | Genre | Action-RPG, Diablo-artig |
 | Perspektive | Top-down 2D |
 | Ton | Extrem düster, kein Horror |
@@ -61,6 +61,25 @@ Alternativ per Kommandozeile: `godot --path .`
 | R | Neuer Lauf nach dem Tod |
 | H | Hilfe ein/aus |
 
+## Am Handy spielen (Web-Version)
+
+Das Spiel läuft als Webseite im Handy-Browser (Querformat), mit Touch-Steuerung:
+
+- **Linke Bildschirmhälfte:** Stick zum Laufen. Er erscheint dort, wo du den Finger aufsetzt.
+- **Rechts:** `Schlag`, `Weg` (Ausweichen), `Fackel`, `Treppe` (hinabsteigen); oben `Rüst.` (Rüstung wechseln), `?` (Hilfe) und `[ ]` (Vollbild).
+- **Zielen:** automatisch auf den nächsten Gegner in Reichweite, sonst in Laufrichtung.
+- Die Steuerung blendet sich bei Maus/Tastatur aus und bei Berührung wieder ein.
+
+**Veröffentlichen (einmalig einrichten):**
+
+1. Im GitHub-Repository unter *Settings → Pages* als Quelle **GitHub Actions** wählen.
+2. Änderungen nach `main` mergen. Der Workflow `.github/workflows/web-export.yml` führt die Tests aus, exportiert die Web-Version und veröffentlicht sie. Er lässt sich auch manuell über *Actions → Run workflow* starten (der Branch muss in den Regeln der Umgebung `github-pages` erlaubt sein).
+3. Die Adresse (`https://<benutzer>.github.io/DARK-arpg/`) steht danach im Workflow-Lauf. Auf dem Handy öffnen, Kopfhörer anstecken, einmal tippen (Browser starten Audio erst nach einer Berührung).
+
+**Lokal testen:** `./serve_web.sh` (Godot und die Web-Export-Templates müssen installiert sein) baut die Version und startet einen Server auf Port 8080.
+
+Hinweise: Das erste Laden dauert etwas (die Engine ist ca. 10 MB komprimiert, die Klänge werden beim Start erzeugt, dabei läuft ein Ladebalken). Auf schwachen Handys können die Schattenlichter ruckeln.
+
 ### Was der Prototyp zeigt
 
 - **Dunkelheit**: Fast alles ist schwarz. Fackel (größerer, warmer Lichtradius) oder ohne Fackel (winziger, kalter Radius). Wände werfen echte Schatten.
@@ -82,9 +101,12 @@ scripts/
   autoload/            Balance (Werte), Events (Lärm-Signal), Game (Input, Meta-Save), Sfx (Sound-Synthese)
   world/               Level-Generator, Treppe, Kohlebecken
   actors/              Spieler, Gegner (Ghul)
-  ui/                  HUD
+  ui/                  HUD, Touch-Steuerung
   util/                Licht-Helfer
 tests/                 Headless-Tests
+export_presets.cfg     Export-Einstellungen (Web)
+serve_web.sh           Web-Version lokal bauen und ausliefern
+.github/workflows/     Automatischer Web-Export nach GitHub Pages
 ```
 
 Tests: `godot --headless --path . -s res://tests/run_tests.gd`
@@ -94,5 +116,6 @@ Tests: `godot --headless --path . -s res://tests/run_tests.gd`
 - Meta-Progression: Asche ausgeben (Upgrades, Startausrüstung)
 - Rüstung, Waffen und Fähigkeiten als Beute bzw. Auswahl im Lauf statt Umschalten per Taste
 - Weitere Gegnertypen (z. B. lautlose Jäger, Gegner, die Licht meiden oder anziehen)
+- Touch: Zielen per zweitem Stick statt Auto-Zielen (optional), Leistungs-Optionen für schwache Handys
 - Echte Grafik und Sounds, ggf. Audio-Middleware (FMOD/Wwise) für Hall und Okklusion
 - Setting, Name und Story

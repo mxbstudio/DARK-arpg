@@ -13,10 +13,13 @@ func _ready() -> void:
 
 
 func _run() -> void:
+	if not Sfx.loaded:
+		await Sfx.finished_loading
 	_test_balance()
 	_test_sfx()
 	_test_level_generation()
 	await _test_enemy_hearing()
+	await _test_touch_controls()
 	print("Tests: %d checks, %d failures" % [_checks, _failures])
 	finished.emit(_failures)
 
@@ -88,3 +91,30 @@ func _test_enemy_hearing() -> void:
 	_check(e.state == Enemy.State.INVESTIGATE, "plate step at %dpx is heard" % dist)
 	_check(e.target_pos == noise_pos, "enemy investigates the noise position")
 	level.queue_free()
+
+
+func _test_touch_controls() -> void:
+	var touch := TouchControls.new()
+	add_child(touch)
+	await get_tree().process_frame
+	Game.touch_mode = true
+	touch.visible = true
+	touch._layout()
+	var size := touch._screen_size()
+	# Stick: press on the left half, drag right -> move_right is pressed.
+	touch._on_press(0, Vector2(size.x * 0.2, size.y * 0.7))
+	_check(touch._stick_id == 0, "touch on left half starts the stick")
+	touch._update_stick(Vector2(size.x * 0.2 + 60.0, size.y * 0.7))
+	_check(Input.get_action_strength("move_right") > 0.5, "dragging right presses move_right")
+	touch._on_release(0)
+	_check(Input.get_action_strength("move_right") == 0.0, "releasing the stick stops movement")
+	# Buttons: pressing the attack button presses the action.
+	var attack: Dictionary = touch._buttons[0]
+	_check(attack["id"] == "attack", "first touch button is attack")
+	touch._on_press(1, attack["pos"])
+	_check(Input.is_action_pressed("attack"), "attack button presses the attack action")
+	touch._on_release(1)
+	touch._release_everything()
+	_check(not Input.is_action_pressed("attack"), "attack action is released")
+	Game.touch_mode = false
+	touch.queue_free()

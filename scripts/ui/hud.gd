@@ -11,6 +11,15 @@ Ein anschwellendes Knurren kündigt einen Angriff an – weich aus, wenn es gipf
 Plattenrüstung schützt, ist aber laut. Ohne Fackel sehen dich Gegner schlechter.
 Die Treppe nach unten erkennst du am kalten Luftzug."""
 
+const TOUCH_HELP_TEXT := """Linke Bildschirmhälfte: Stick zum Laufen (erscheint, wo du tippst)
+Rechts: Schlag, Weg (Ausweichen), Fackel, Treppe, Rüst. (Rüstung wechseln)
+Gezielt wird automatisch auf den nächsten Gegner.
+
+Kopfhörer empfohlen. Hör hin: Schritte und Atem verraten Gegner im Dunkeln.
+Ein anschwellendes Knurren kündigt einen Angriff an – weich aus, wenn es gipfelt.
+Plattenrüstung schützt, ist aber laut. Ohne Fackel sehen dich Gegner schlechter.
+Die Treppe nach unten erkennst du am kalten Luftzug."""
+
 var player: Player
 var depth := 1
 
@@ -21,6 +30,7 @@ var _hint: Label
 var _help_visible := false
 var _death_visible := false
 var _help_timer := 0.0
+var _loading := false
 
 
 func _ready() -> void:
@@ -31,9 +41,9 @@ func _ready() -> void:
 	_bars.draw.connect(_draw_bars)
 	add_child(_bars)
 
-	_info = _make_label(15, Color(0.72, 0.67, 0.6))
+	_info = _make_label(18 if Game.touch_mode else 15, Color(0.72, 0.67, 0.6))
 	_info.position = Vector2(24, 58)
-	_center = _make_label(19, Color(0.8, 0.75, 0.68))
+	_center = _make_label(22 if Game.touch_mode else 19, Color(0.8, 0.75, 0.68))
 	_center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_center.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_center.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -41,6 +51,15 @@ func _ready() -> void:
 	_hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	_hint.offset_top = -70
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+
+func set_loading(fraction: float) -> void:
+	if fraction < 0.0:
+		_loading = false
+		_center.text = ""
+		return
+	_loading = true
+	_center.text = "Lade Klänge … %d %%" % int(fraction * 100.0)
 
 
 func show_help(auto_hide_after: float) -> void:
@@ -57,8 +76,9 @@ func toggle_help() -> void:
 func show_death(reached_depth: int, ash_gained: int) -> void:
 	_help_visible = false
 	_death_visible = true
-	_center.text = "DU BIST GEFALLEN\n\nErreichte Tiefe: %d\nAsche: +%d  (gesamt %d)\nBeste Tiefe: %d\n\n[R]  Neuer Abstieg" % [
-		reached_depth, ash_gained, Game.ash, Game.best_depth]
+	_center.text = "DU BIST GEFALLEN\n\nErreichte Tiefe: %d\nAsche: +%d  (gesamt %d)\nBeste Tiefe: %d\n\n%s" % [
+		reached_depth, ash_gained, Game.ash, Game.best_depth,
+		"Tippe auf „Neu“ für einen neuen Abstieg" if Game.touch_mode else "[R]  Neuer Abstieg"]
 
 
 func set_hint(text: String) -> void:
@@ -70,8 +90,8 @@ func _process(delta: float) -> void:
 		_help_timer -= delta
 		if _help_timer <= 0.0:
 			_help_visible = false
-	if not _death_visible:
-		_center.text = HELP_TEXT if _help_visible else ""
+	if not _death_visible and not _loading:
+		_center.text = (TOUCH_HELP_TEXT if Game.touch_mode else HELP_TEXT) if _help_visible else ""
 	if player != null:
 		var armor_name: String = player.armor()["name"]
 		_info.text = "Tiefe %d    Rüstung: %s    Fackel: %s\nLauf #%d    Asche: %d    Beste Tiefe: %d" % [

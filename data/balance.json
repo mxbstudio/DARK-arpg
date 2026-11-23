@@ -106,5 +106,14 @@
 		"braziers_max": 3,
 		"heal_on_descend": 0.25,
 		"ash_per_depth": 10
+	},
+	"touch": {
+		"aim_assist_px": 170,
+		"stick_radius_px": 70,
+		"stick_deadzone": 0.18,
+		"button_radius_px": 46,
+		"attack_button_radius_px": 62,
+		"button_alpha": 0.38,
+		"content_scale": [800, 450]
 	}
 }

@@ -157,9 +157,32 @@ func _enter(s: State) -> void:
 
 
 func _aim() -> void:
+	if Game.touch_mode:
+		_aim_touch()
+		return
 	var to_mouse := get_global_mouse_position() - global_position
 	if to_mouse.length() > 2.0:
 		facing = to_mouse.normalized()
+
+
+## Touch has no cursor: aim at the nearest enemy in range, otherwise face the movement direction.
+func _aim_touch() -> void:
+	var best: Enemy = null
+	var best_dist := float(Balance.section("touch")["aim_assist_px"])
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if enemy == null or not enemy.is_alive():
+			continue
+		var d := global_position.distance_to(enemy.global_position)
+		if d < best_dist:
+			best_dist = d
+			best = enemy
+	if best != null:
+		facing = (best.global_position - global_position).normalized()
+	else:
+		var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		if move.length() > 0.2:
+			facing = move.normalized()
 
 
 func _read_toggles() -> void:

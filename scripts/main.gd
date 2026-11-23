@@ -10,6 +10,7 @@ var level: Level
 var player: Player
 var exit_stairs: ExitStairs
 var hud: Hud
+var touch: TouchControls
 var rng := RandomNumberGenerator.new()
 var run_cfg: Dictionary = {}
 
@@ -24,14 +25,23 @@ func _ready() -> void:
 	darkness.color = Balance.to_color(vision["ambient"])
 	add_child(darkness)
 
+	hud = Hud.new()
+	add_child(hud)
+	touch = TouchControls.new()
+	add_child(touch)
+
+	if not Sfx.loaded:
+		# Sounds are synthesized at startup; on slow devices this takes a moment.
+		hud.set_loading(0.0)
+		Sfx.loading_progress.connect(hud.set_loading)
+		await Sfx.finished_loading
+		hud.set_loading(-1.0)
+
 	var drone := AudioStreamPlayer.new()
 	drone.stream = Sfx.stream("drone")
 	drone.volume_db = float(Balance.section("audio")["ambient_drone_db"])
 	add_child(drone)
 	drone.play()
-
-	hud = Hud.new()
-	add_child(hud)
 	start_run()
 
 
@@ -98,6 +108,9 @@ func descend() -> void:
 
 
 func _process(_delta: float) -> void:
+	if player == null or exit_stairs == null:
+		return  # still loading
+	touch.show_restart = run_over
 	if Input.is_action_just_pressed("help") and not run_over:
 		hud.toggle_help()
 	if run_over:
@@ -106,7 +119,8 @@ func _process(_delta: float) -> void:
 			start_run()
 		return
 	var near_exit := player.global_position.distance_to(exit_stairs.global_position) < EXIT_REACH
-	hud.set_hint("[E]  Hinabsteigen" if near_exit else "")
+	touch.interact_ready = near_exit
+	hud.set_hint(("[Treppe]  Hinabsteigen" if Game.touch_mode else "[E]  Hinabsteigen") if near_exit else "")
 	if near_exit and Input.is_action_just_pressed("interact"):
 		descend()
 
