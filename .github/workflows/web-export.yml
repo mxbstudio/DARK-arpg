@@ -1,0 +1,74 @@
+name: Web-Export (GitHub Pages)
+
+# Baut bei jedem Push auf main eine Web-Version (läuft auch auf dem Handy) und
+# veröffentlicht sie über GitHub Pages. Manuell startbar über "Run workflow".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Godot installieren
+        run: |
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+
+      - name: Export-Templates (Web) aus dem Cache holen
+        id: tpl-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          key: godot-web-templates-${{ env.GODOT_VERSION }}
+
+      - name: Export-Templates (Web) laden
+        if: steps.tpl-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p tmp ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          unzip -q templates.tpz 'templates/web_*' -d tmp
+          mv tmp/templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
+          rm -rf tmp templates.tpz
+
+      - name: Projekt importieren
+        run: godot --headless --path . --import
+
+      - name: Tests
+        run: godot --headless --path . -s res://tests/run_tests.gd
+
+      - name: Web-Export
+        run: |
+          mkdir -p build/web
+          godot --headless --path . --export-release Web build/web/index.html
+          touch build/web/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: export
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
