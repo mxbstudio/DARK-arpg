@@ -9,7 +9,7 @@ Dein Bogen schießt von selbst – aber nur auf Gegner, die du im Licht siehst.
 Kopfhörer empfohlen. Hör hin: Schritte und Atem verraten Gegner im Dunkeln.
 Ein anschwellendes Knurren kündigt einen Angriff an – weich aus, wenn es gipfelt.
 Plattenrüstung schützt, ist aber laut. Ohne Fackel sehen dich Gegner schlechter.
-Im Lager: geh zum Tor im Norden. Unten führt ein kalter Luftzug zur Treppe."""
+Im Lager: am Köcher (rechts) baust du deine Skill-Reihe, am Tor im Norden beginnt der Abstieg. Unten führt ein kalter Luftzug zur Treppe."""
 
 const TOUCH_HELP_TEXT := """Linke Bildschirmhälfte: Stick zum Laufen (erscheint, wo du tippst)
 Rechts: Weg (Ausweichen), Fackel, Aktion (Tor / Treppe), Rüst. (Rüstung wechseln)
@@ -18,7 +18,7 @@ Dein Bogen schießt von selbst – aber nur auf Gegner, die du im Licht siehst.
 Kopfhörer empfohlen. Hör hin: Schritte und Atem verraten Gegner im Dunkeln.
 Ein anschwellendes Knurren kündigt einen Angriff an – weich aus, wenn es gipfelt.
 Plattenrüstung schützt, ist aber laut. Ohne Fackel sehen dich Gegner schlechter.
-Im Lager: geh zum Tor im Norden. Unten führt ein kalter Luftzug zur Treppe."""
+Im Lager: am Köcher (rechts) baust du deine Skill-Reihe, am Tor im Norden beginnt der Abstieg. Unten führt ein kalter Luftzug zur Treppe."""
 
 var player: Player
 var depth := 1
@@ -108,6 +108,34 @@ func _draw_bars() -> void:
 		return
 	_bar(Vector2(24, 20), Vector2(260, 12), player.hp / player.max_hp, Color(0.55, 0.08, 0.06))
 	_bar(Vector2(24, 38), Vector2(260, 7), player.stamina / player.max_stamina, Color(0.55, 0.5, 0.35))
+	_draw_rotation()
+
+
+## The skill row at the bottom: current slot highlighted, its bar fills until it fires.
+## A glowing dot means a prep is loaded for the next attack.
+func _draw_rotation() -> void:
+	var row := player.rotation_row
+	if row == null:
+		return
+	var n := row.loadout.size()
+	var box := 40.0
+	var gap := 6.0
+	var total := n * box + (n - 1) * gap
+	var origin := Vector2((_bars.size.x - total) * 0.5, _bars.size.y - box - 34.0)
+	for i in n:
+		var id := row.loadout[i]
+		var r := Rect2(origin + Vector2(i * (box + gap), 0), Vector2(box, box))
+		var current := i == row.index and not in_camp
+		var col := Color.from_string(String(SkillRotation.skill(id)["color"]), Color.WHITE)
+		_bars.draw_rect(r, Color(0.04, 0.035, 0.03, 0.8))
+		var icon := SkillIcons.get_icon(id, 32)
+		if icon != null:
+			_bars.draw_texture_rect(icon, r.grow(-4), false, Color(1, 1, 1, 1.0 if current or in_camp else 0.5))
+		_bars.draw_rect(r, col if current else Color(0.3, 0.27, 0.23), false, 2.0 if current else 1.0)
+		if current:
+			_bars.draw_rect(Rect2(r.position + Vector2(0, box + 3), Vector2(box * row.progress(), 3)), col)
+			if not row.pending.is_empty():
+				_bars.draw_circle(r.position + Vector2(box * 0.5, -6), 3.5, Color(1.0, 0.8, 0.4))
 
 
 func _bar(pos: Vector2, size: Vector2, fraction: float, color: Color) -> void:

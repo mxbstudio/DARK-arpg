@@ -34,6 +34,8 @@ var _hurt_flash := 0.0
 var _step_t := 0.0
 var _breath_t := 0.0
 var _slow_t := 0.0
+var _chill_t := 0.0
+var _knock := Vector2.ZERO
 var _sprite: SheetSprite
 
 
@@ -71,21 +73,33 @@ func is_alive() -> bool:
 	return state != State.DEAD
 
 
-func take_damage(amount: float, from_pos: Vector2) -> void:
+## Returns true when this hit killed the ghoul.
+func take_damage(amount: float, from_pos: Vector2) -> bool:
 	if state == State.DEAD:
-		return
+		return false
 	hp -= amount
 	_hurt_flash = HURT_FLASH
 	Sfx.play_on("hit", self, -3.0, 500.0)
 	if hp <= 0.0:
 		_die()
-		return
+		return true
 	# Hits slow the ghoul briefly but never interrupt an attack (poise): the player must dodge.
 	_slow_t = float(cfg["hurt_slow_time"])
 	if state == State.WANDER or state == State.INVESTIGATE:
 		target_pos = from_pos
 		_last_seen_t = 0.0
 		_spot_player()
+	return false
+
+
+func apply_chill(duration: float) -> void:
+	_chill_t = maxf(_chill_t, duration)
+
+
+## Knockback; ignored while lunging (poise).
+func push(impulse: Vector2) -> void:
+	if state != State.ATTACK and state != State.DEAD:
+		_knock += impulse
 
 
 func _physics_process(delta: float) -> void:
@@ -119,6 +133,11 @@ func _physics_process(delta: float) -> void:
 	if _slow_t > 0.0 and state != State.ATTACK:
 		_slow_t -= delta
 		velocity *= float(cfg["hurt_slow"])
+	if _chill_t > 0.0:
+		_chill_t -= delta
+		velocity *= float(cfg["chill_slow"])
+	velocity += _knock
+	_knock = _knock.move_toward(Vector2.ZERO, 900.0 * delta)
 	move_and_slide()
 	_tick_sounds(delta)
 	_update_anim()
@@ -297,7 +316,8 @@ func _die() -> void:
 
 
 func _update_anim() -> void:
-	_sprite.modulate = Color.WHITE.lerp(Color(2.0, 2.0, 2.0), _hurt_flash / HURT_FLASH)
+	var base := Color(0.65, 0.85, 1.25) if _chill_t > 0.0 else Color.WHITE
+	_sprite.modulate = base.lerp(Color(2.0, 2.0, 2.0), _hurt_flash / HURT_FLASH)
 	_sprite.set_face(facing.x)
 	match state:
 		State.WINDUP:
