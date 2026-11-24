@@ -3,7 +3,7 @@ extends CharacterBody2D
 ## Ghoul: hunts by hearing and sight. Audible (steps, breath, growl) long before
 ## it is visible. Telegraphs attacks with a rising growl that peaks on impact.
 
-enum State { WANDER, INVESTIGATE, CHASE, WINDUP, ATTACK, RECOVER, STAGGER, DEAD }
+enum State { WANDER, INVESTIGATE, CHASE, WINDUP, ATTACK, RECOVER, DEAD }
 
 const WALL_MASK := 1
 const HURT_FLASH := 0.15
@@ -33,6 +33,8 @@ var _has_hit := false
 var _hurt_flash := 0.0
 var _step_t := 0.0
 var _breath_t := 0.0
+var _slow_t := 0.0
+var _sprite: SheetSprite
 
 
 func setup(p_cfg: Dictionary, p_level: Level, p_player: Player, seed_value: int) -> void:
@@ -56,6 +58,9 @@ func _ready() -> void:
 	circle.radius = radius
 	shape.shape = circle
 	add_child(shape)
+	_sprite = SheetSprite.new()
+	add_child(_sprite)
+	_sprite.setup("ghoul")
 	facing = Vector2.from_angle(rng.randf() * TAU)
 	_idle_t = rng.randf_range(0.5, 2.5)
 	_breath_t = rng.randf_range(0.5, 3.0)
@@ -75,12 +80,12 @@ func take_damage(amount: float, from_pos: Vector2) -> void:
 	if hp <= 0.0:
 		_die()
 		return
-	target_pos = from_pos
-	_last_seen_t = 0.0
-	if state == State.WINDUP or state == State.ATTACK:
-		return  # poise: attacks are not interrupted, the player must dodge
-	velocity = (global_position - from_pos).normalized() * 160.0
-	_enter(State.STAGGER)
+	# Hits slow the ghoul briefly but never interrupt an attack (poise): the player must dodge.
+	_slow_t = float(cfg["hurt_slow_time"])
+	if state == State.WANDER or state == State.INVESTIGATE:
+		target_pos = from_pos
+		_last_seen_t = 0.0
+		_spot_player()
 
 
 func _physics_process(delta: float) -> void:
@@ -110,14 +115,13 @@ func _physics_process(delta: float) -> void:
 			velocity = velocity.move_toward(Vector2.ZERO, 700.0 * delta)
 			if state_time >= float(cfg["recovery"]):
 				_enter(State.CHASE)
-		State.STAGGER:
-			velocity = velocity.move_toward(Vector2.ZERO, 700.0 * delta)
-			if state_time >= float(cfg["stagger"]):
-				_enter(State.CHASE)
 
+	if _slow_t > 0.0 and state != State.ATTACK:
+		_slow_t -= delta
+		velocity *= float(cfg["hurt_slow"])
 	move_and_slide()
 	_tick_sounds(delta)
-	queue_redraw()
+	_update_anim()
 
 
 func _enter(s: State) -> void:
@@ -288,36 +292,26 @@ func _die() -> void:
 	set_deferred("collision_mask", 0)
 	z_index = -1
 	Sfx.play_on("enemy_death", self, 0.0, 600.0)
-	queue_redraw()
+	_sprite.modulate = Color.WHITE
+	_sprite.play("die", false, 9.0)
 
 
-func _draw() -> void:
-	var col := Color(0.3, 0.33, 0.28)
-	if _hurt_flash > 0.0:
-		col = col.lerp(Color(0.9, 0.9, 0.85), _hurt_flash / HURT_FLASH)
-	var ang := facing.angle()
-	if state == State.DEAD:
-		draw_circle(Vector2.ZERO, radius * 1.4, Color(0.1, 0.05, 0.05, 0.8))
-		draw_set_transform(Vector2.ZERO, ang, Vector2(1.4, 0.7))
-		draw_circle(Vector2.ZERO, radius, col.darkened(0.55))
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-		return
-	var lean := 0.0
-	if state == State.WINDUP:
-		lean = -4.0 * clampf(state_time / float(cfg["windup"]), 0.0, 1.0)
-	elif state == State.ATTACK:
-		lean = 4.0
-	draw_set_transform(Vector2(lean, 0).rotated(ang), ang, Vector2(1.25, 0.9))
-	draw_circle(Vector2.ZERO, radius, col)
-	draw_set_transform(Vector2.ZERO, ang, Vector2.ONE)
-	var head := Vector2(radius * 0.9 + lean, 0)
-	draw_circle(head, 5.0, col.darkened(0.2))
-	var attacking := state == State.WINDUP or state == State.ATTACK
-	var eye := Color(1.0, 0.15, 0.1) if attacking else Color(0.85, 0.8, 0.6)
-	draw_circle(head + Vector2(2.5, -2.0), 1.2, eye)
-	draw_circle(head + Vector2(2.5, 2.0), 1.2, eye)
-	if state == State.ATTACK:
-		for i in 3:
-			var off := (i - 1) * 4.0
-			draw_line(head + Vector2(4, off), head + Vector2(14, off * 1.5), Color(0.85, 0.8, 0.75), 1.0)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+func _update_anim() -> void:
+	_sprite.modulate = Color.WHITE.lerp(Color(2.0, 2.0, 2.0), _hurt_flash / HURT_FLASH)
+	_sprite.set_face(facing.x)
+	match state:
+		State.WINDUP:
+			# Rear back during the windup, strike on the lunge.
+			var w := float(cfg["windup"])
+			_sprite.play("atk", false, 3.0 / w)
+		State.ATTACK:
+			_sprite.play("atk", false, 3.0 / float(cfg["active"]))
+		State.RECOVER:
+			_sprite.play("idle", true, 4.0)
+		_:
+			if _slow_t > 0.0:
+				_sprite.play("hurt", false, 14.0)
+			elif velocity.length() > 5.0:
+				_sprite.play("walk", true, 4.0 + velocity.length() / 10.0)
+			else:
+				_sprite.play("idle", true, 5.0)

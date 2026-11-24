@@ -5,6 +5,7 @@ extends Node
 const PATH := "res://data/balance.json"
 
 var data: Dictionary = {}
+var _files: Dictionary = {}
 
 
 func _init() -> void:
@@ -28,6 +29,20 @@ func section(section_name: String) -> Dictionary:
 		push_error("Balance: missing section '%s'" % section_name)
 		return {}
 	return data[section_name]
+
+
+## Loads another JSON data file (e.g. data/sprites.json). Cached per path.
+func data_file(path: String) -> Dictionary:
+	if _files.has(path):
+		return _files[path]
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		push_error("Balance: cannot open %s" % path)
+		return {}
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	var result: Dictionary = parsed if parsed is Dictionary else {}
+	_files[path] = result
+	return result
 
 
 static func to_color(values: Array) -> Color:

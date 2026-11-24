@@ -5,13 +5,16 @@ extends Node2D
 var _light: PointLight2D
 var _base_energy := 1.0
 var _t := 0.0
+var _reach := 0.0
 
 
 func _ready() -> void:
 	z_index = -4
+	add_to_group("light_sources")
 	var vision := Balance.section("vision")
 	var audio := Balance.section("audio")
 	_base_energy = float(vision["brazier_energy"])
+	_reach = float(vision["brazier_radius_px"]) * float(vision["reveal_fraction"])
 	_light = LightUtil.make_light(float(vision["brazier_radius_px"]), _base_energy, Color(1.0, 0.55, 0.25))
 	add_child(_light)
 	var p := AudioStreamPlayer2D.new()
@@ -21,6 +24,11 @@ func _ready() -> void:
 	add_child(p)
 	p.play()
 	_t = randf() * 10.0
+
+
+## How far this fire reveals enemies (see Lighting).
+func light_reach() -> float:
+	return _reach
 
 
 func _process(delta: float) -> void:
