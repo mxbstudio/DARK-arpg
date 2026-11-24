@@ -1,16 +1,20 @@
 extends Node2D
-## Run controller: builds floors, tracks depth, handles descending, death and restart.
+## Game flow: start camp -> run (floors of increasing depth) -> death -> back to camp.
+
+enum Mode { LOADING, CAMP, RUN, DEAD }
 
 const EXIT_REACH := 26.0
 
+var mode: Mode = Mode.LOADING
 var depth := 1
-var run_over := false
 var world: Node2D
 var level: Level
+var camp: Camp
 var player: Player
 var exit_stairs: ExitStairs
 var hud: Hud
 var touch: TouchControls
+var darkness: CanvasModulate
 var rng := RandomNumberGenerator.new()
 var run_cfg: Dictionary = {}
 
@@ -18,11 +22,8 @@ var run_cfg: Dictionary = {}
 func _ready() -> void:
 	rng.randomize()
 	run_cfg = Balance.section("run")
-	var vision := Balance.section("vision")
 
-	# Darkness is the default state: everything not lit is (almost) black.
-	var darkness := CanvasModulate.new()
-	darkness.color = Balance.to_color(vision["ambient"])
+	darkness = CanvasModulate.new()
 	add_child(darkness)
 
 	hud = Hud.new()
@@ -42,29 +43,61 @@ func _ready() -> void:
 	drone.volume_db = float(Balance.section("audio")["ambient_drone_db"])
 	add_child(drone)
 	drone.play()
-	start_run()
-
-
-func start_run() -> void:
-	depth = 1
-	run_over = false
-	if player != null:
-		player.queue_free()
-		player = null
-	build_floor()
+	enter_camp()
 	hud.show_help(12.0)
 
 
-func build_floor() -> void:
+func _new_world() -> void:
 	if player != null and player.get_parent() != null:
 		player.get_parent().remove_child(player)
 	if world != null:
 		remove_child(world)
 		world.queue_free()
-
 	world = Node2D.new()
 	world.name = "World"
 	add_child(world)
+	level = null
+	camp = null
+	exit_stairs = null
+
+
+func _place_player(pos: Vector2) -> void:
+	player.sound_parent = world
+	player.position = pos
+	world.add_child(player)
+	player.snap_camera()
+	hud.player = player
+
+
+## The safe hub. A fresh hero waits here; runs start at the gate.
+func enter_camp() -> void:
+	mode = Mode.CAMP
+	if player != null:
+		player.queue_free()
+		player = null
+	_new_world()
+	camp = Camp.new()
+	world.add_child(camp)
+	darkness.color = camp.ambient_color()
+	player = Player.new()
+	player.peaceful = true
+	player.died.connect(_on_player_died)
+	_place_player(camp.spawn_point)
+	hud.in_camp = true
+
+
+func start_run() -> void:
+	mode = Mode.RUN
+	depth = 1
+	player.peaceful = false
+	Sfx.play_ui("descend", -4.0)
+	build_floor()
+	hud.in_camp = false
+
+
+func build_floor() -> void:
+	_new_world()
+	darkness.color = Balance.to_color(Balance.section("vision")["ambient"])
 
 	level = Level.new()
 	world.add_child(level)
@@ -80,13 +113,7 @@ func build_floor() -> void:
 	exit_stairs.position = level.cell_center(level.exit_cell)
 	world.add_child(exit_stairs)
 
-	if player == null:
-		player = Player.new()
-		player.died.connect(_on_player_died)
-	player.sound_parent = world
-	player.position = level.cell_center(level.start_cell)
-	world.add_child(player)
-	player.snap_camera()
+	_place_player(level.cell_center(level.start_cell))
 
 	var count := int(run_cfg["enemies_base"]) + int(run_cfg["enemies_per_depth"]) * (depth - 1)
 	var enemy_cfg: Dictionary = Balance.section("enemies")["ghoul"]
@@ -96,7 +123,6 @@ func build_floor() -> void:
 		e.position = p
 		world.add_child(e)
 
-	hud.player = player
 	hud.depth = depth
 
 
@@ -108,24 +134,32 @@ func descend() -> void:
 
 
 func _process(_delta: float) -> void:
-	if player == null or exit_stairs == null:
-		return  # still loading
-	touch.show_restart = run_over
-	if Input.is_action_just_pressed("help") and not run_over:
-		hud.toggle_help()
-	if run_over:
-		hud.set_hint("")
-		if Input.is_action_just_pressed("restart"):
-			start_run()
+	if mode == Mode.LOADING:
 		return
-	var near_exit := player.global_position.distance_to(exit_stairs.global_position) < EXIT_REACH
-	touch.interact_ready = near_exit
-	hud.set_hint(("[Treppe]  Hinabsteigen" if Game.touch_mode else "[E]  Hinabsteigen") if near_exit else "")
-	if near_exit and Input.is_action_just_pressed("interact"):
-		descend()
+	touch.show_restart = mode == Mode.DEAD
+	if Input.is_action_just_pressed("help") and mode != Mode.DEAD:
+		hud.toggle_help()
+	var act := "[Aktion]" if Game.touch_mode else "[E]"
+	match mode:
+		Mode.DEAD:
+			hud.set_hint("")
+			if Input.is_action_just_pressed("restart") or Input.is_action_just_pressed("interact"):
+				enter_camp()
+		Mode.CAMP:
+			var at_gate := camp.is_at_gate(player.global_position)
+			touch.interact_ready = at_gate
+			hud.set_hint(act + "  Abstieg beginnen" if at_gate else "")
+			if at_gate and Input.is_action_just_pressed("interact"):
+				start_run()
+		Mode.RUN:
+			var near_exit := player.global_position.distance_to(exit_stairs.global_position) < EXIT_REACH
+			touch.interact_ready = near_exit
+			hud.set_hint(act + "  Hinabsteigen" if near_exit else "")
+			if near_exit and Input.is_action_just_pressed("interact"):
+				descend()
 
 
 func _on_player_died() -> void:
-	run_over = true
+	mode = Mode.DEAD
 	var gained := Game.record_run(depth)
 	hud.show_death(depth, gained)

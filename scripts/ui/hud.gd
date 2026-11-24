@@ -2,26 +2,28 @@ class_name Hud
 extends CanvasLayer
 ## Minimal, dim HUD: health, stamina, run info, help and death screen.
 
-const HELP_TEXT := """WASD  bewegen      Maus  zielen      Linksklick  Schlag
-Leertaste / Rechtsklick  Ausweichen      F  Fackel an/aus
-T  Rüstung wechseln (Prototyp)      E  Treppe hinab      H  Hilfe
+const HELP_TEXT := """WASD  bewegen      Leertaste / Rechtsklick  Ausweichen
+F  Fackel an/aus      T  Rüstung wechseln (Prototyp)      E  Tor / Treppe      H  Hilfe
 
+Dein Bogen schießt von selbst – aber nur auf Gegner, die du im Licht siehst.
 Kopfhörer empfohlen. Hör hin: Schritte und Atem verraten Gegner im Dunkeln.
 Ein anschwellendes Knurren kündigt einen Angriff an – weich aus, wenn es gipfelt.
 Plattenrüstung schützt, ist aber laut. Ohne Fackel sehen dich Gegner schlechter.
-Die Treppe nach unten erkennst du am kalten Luftzug."""
+Im Lager: geh zum Tor im Norden. Unten führt ein kalter Luftzug zur Treppe."""
 
 const TOUCH_HELP_TEXT := """Linke Bildschirmhälfte: Stick zum Laufen (erscheint, wo du tippst)
-Rechts: Schlag, Weg (Ausweichen), Fackel, Treppe, Rüst. (Rüstung wechseln)
-Gezielt wird automatisch auf den nächsten Gegner.
+Rechts: Weg (Ausweichen), Fackel, Aktion (Tor / Treppe), Rüst. (Rüstung wechseln)
 
+Dein Bogen schießt von selbst – aber nur auf Gegner, die du im Licht siehst.
 Kopfhörer empfohlen. Hör hin: Schritte und Atem verraten Gegner im Dunkeln.
 Ein anschwellendes Knurren kündigt einen Angriff an – weich aus, wenn es gipfelt.
 Plattenrüstung schützt, ist aber laut. Ohne Fackel sehen dich Gegner schlechter.
-Die Treppe nach unten erkennst du am kalten Luftzug."""
+Im Lager: geh zum Tor im Norden. Unten führt ein kalter Luftzug zur Treppe."""
 
 var player: Player
 var depth := 1
+## True while the hero is in the start camp.
+var in_camp := false
 
 var _bars: Control
 var _info: Label
@@ -78,7 +80,7 @@ func show_death(reached_depth: int, ash_gained: int) -> void:
 	_death_visible = true
 	_center.text = "DU BIST GEFALLEN\n\nErreichte Tiefe: %d\nAsche: +%d  (gesamt %d)\nBeste Tiefe: %d\n\n%s" % [
 		reached_depth, ash_gained, Game.ash, Game.best_depth,
-		"Tippe auf „Neu“ für einen neuen Abstieg" if Game.touch_mode else "[R]  Neuer Abstieg"]
+		"Tippe auf „Lager“, um zurückzukehren" if Game.touch_mode else "[E]  Zurück ins Lager"]
 
 
 func set_hint(text: String) -> void:
@@ -94,8 +96,9 @@ func _process(delta: float) -> void:
 		_center.text = (TOUCH_HELP_TEXT if Game.touch_mode else HELP_TEXT) if _help_visible else ""
 	if player != null:
 		var armor_name: String = player.armor()["name"]
-		_info.text = "Tiefe %d    Rüstung: %s    Fackel: %s\nLauf #%d    Asche: %d    Beste Tiefe: %d" % [
-			depth, armor_name, "an" if player.torch_on else "aus",
+		var where := "Lager" if in_camp else "Tiefe %d" % depth
+		_info.text = "%s    Rüstung: %s    Fackel: %s\nLauf #%d    Asche: %d    Beste Tiefe: %d" % [
+			where, armor_name, "an" if player.torch_on else "aus",
 			Game.total_runs + (0 if _death_visible else 1), Game.ash, Game.best_depth]
 	_bars.queue_redraw()
 

@@ -6,16 +6,12 @@
 		"stamina_regen_delay": 0.6,
 		"speed": 115,
 		"step_length": 34,
-		"attack": {
-			"damage": 34,
-			"windup": 0.24,
-			"active": 0.12,
-			"recovery": 0.4,
-			"reach": 36,
-			"arc_deg": 110,
-			"stamina_cost": 24,
-			"lunge_speed": 90,
-			"noise_radius": 160
+		"shot": {
+			"damage": 30,
+			"interval": 0.55,
+			"range": 260,
+			"speed": 520,
+			"noise_radius": 120
 		},
 		"dodge": {
 			"duration": 0.32,
@@ -54,7 +50,8 @@
 		"brazier_energy": 0.9,
 		"enemy_sight_torch_px": 230,
 		"enemy_sight_dark_px": 70,
-		"enemy_alert_sight_mult": 1.4
+		"enemy_alert_sight_mult": 1.4,
+		"reveal_fraction": 0.9
 	},
 	"audio": {
 		"occluded_db": -9.0,
@@ -74,7 +71,7 @@
 	},
 	"enemies": {
 		"ghoul": {
-			"max_hp": 120,
+			"max_hp": 90,
 			"radius": 10,
 			"speed_wander": 32,
 			"speed_investigate": 55,
@@ -85,7 +82,8 @@
 			"active": 0.16,
 			"recovery": 0.9,
 			"lunge_speed": 240,
-			"stagger": 0.35,
+			"hurt_slow": 0.5,
+			"hurt_slow_time": 0.25,
 			"hearing_mult": 1.0,
 			"hearing_occluded_mult": 0.6,
 			"lose_sight_after": 3.0,
@@ -112,7 +110,7 @@
 		"stick_radius_px": 70,
 		"stick_deadzone": 0.18,
 		"button_radius_px": 46,
-		"attack_button_radius_px": 62,
+		"big_button_radius_px": 62,
 		"button_alpha": 0.38,
 		"content_scale": [800, 450]
 	}

@@ -52,18 +52,17 @@ func _screen_size() -> Vector2:
 func _layout() -> void:
 	var size := _screen_size()
 	var r := float(_cfg["button_radius_px"])
-	var big := float(_cfg["attack_button_radius_px"])
+	var big := float(_cfg["big_button_radius_px"])
 	var margin := 28.0
 	var base := Vector2(size.x - margin - big, size.y - margin - big)
 	_buttons = [
-		{"id": "attack", "action": "attack", "pos": base, "r": big, "label": "Schlag"},
-		{"id": "dodge", "action": "dodge", "pos": base + Vector2(-big - r - 18, big * 0.25), "r": r, "label": "Weg"},
+		{"id": "dodge", "action": "dodge", "pos": base, "r": big, "label": "Weg"},
 		{"id": "torch", "action": "torch", "pos": base + Vector2(-big * 0.35, -big - r - 14), "r": r * 0.75, "label": "Fackel"},
-		{"id": "interact", "action": "interact", "pos": base + Vector2(-big - r - 18 - r * 0.5, -r * 1.7 - big * 0.15), "r": r * 0.8, "label": "Treppe"},
+		{"id": "interact", "action": "interact", "pos": base + Vector2(-big - r - 18, big * 0.25), "r": r, "label": "Aktion"},
 		{"id": "armor", "action": "armor", "pos": Vector2(size.x - 40, 150), "r": 26.0, "label": "Rüst."},
 		{"id": "help", "action": "help", "pos": Vector2(size.x - 40, 210), "r": 22.0, "label": "?"},
 		{"id": "fullscreen", "action": "", "pos": Vector2(size.x - 40, 262), "r": 22.0, "label": "[ ]"},
-		{"id": "restart", "action": "restart", "pos": size * 0.5 + Vector2(0, 120), "r": 56.0, "label": "Neu"},
+		{"id": "restart", "action": "restart", "pos": size * 0.5 + Vector2(0, 120), "r": 56.0, "label": "Lager"},
 	]
 
 

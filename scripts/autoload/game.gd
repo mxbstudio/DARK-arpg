@@ -73,7 +73,6 @@ func _setup_input() -> void:
 	_keys("move_down", [KEY_S, KEY_DOWN])
 	_keys("move_left", [KEY_A, KEY_LEFT])
 	_keys("move_right", [KEY_D, KEY_RIGHT])
-	_mouse("attack", MOUSE_BUTTON_LEFT)
 	_keys("dodge", [KEY_SPACE])
 	_mouse("dodge", MOUSE_BUTTON_RIGHT)
 	_keys("torch", [KEY_F])

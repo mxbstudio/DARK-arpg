@@ -20,6 +20,8 @@ func _run() -> void:
 	_test_level_generation()
 	await _test_enemy_hearing()
 	await _test_touch_controls()
+	await _test_camp()
+	await _test_auto_shot()
 	print("Tests: %d checks, %d failures" % [_checks, _failures])
 	finished.emit(_failures)
 
@@ -108,13 +110,51 @@ func _test_touch_controls() -> void:
 	_check(Input.get_action_strength("move_right") > 0.5, "dragging right presses move_right")
 	touch._on_release(0)
 	_check(Input.get_action_strength("move_right") == 0.0, "releasing the stick stops movement")
-	# Buttons: pressing the attack button presses the action.
-	var attack: Dictionary = touch._buttons[0]
-	_check(attack["id"] == "attack", "first touch button is attack")
-	touch._on_press(1, attack["pos"])
-	_check(Input.is_action_pressed("attack"), "attack button presses the attack action")
+	# Buttons: pressing the dodge button presses the action.
+	var dodge: Dictionary = touch._buttons[0]
+	_check(dodge["id"] == "dodge", "first touch button is dodge")
+	touch._on_press(1, dodge["pos"])
+	_check(Input.is_action_pressed("dodge"), "dodge button presses the dodge action")
 	touch._on_release(1)
 	touch._release_everything()
-	_check(not Input.is_action_pressed("attack"), "attack action is released")
+	_check(not Input.is_action_pressed("dodge"), "dodge action is released")
 	Game.touch_mode = false
 	touch.queue_free()
+
+
+func _test_camp() -> void:
+	var camp := Camp.new()
+	add_child(camp)
+	await get_tree().process_frame
+	var poly := PackedVector2Array()
+	for p: Array in camp.cfg["walkable"]:
+		poly.append(camp._pt(p))
+	_check(Geometry2D.is_point_in_polygon(camp.spawn_point, poly), "camp spawn lies on the walkable platform")
+	_check(Geometry2D.is_point_in_polygon(camp.gate_point, poly), "camp gate lies on the walkable platform")
+	_check(camp.is_at_gate(camp.gate_point) and not camp.is_at_gate(camp.spawn_point), "gate is only reachable at the gate")
+	camp.queue_free()
+
+
+func _test_auto_shot() -> void:
+	var level := Level.new()
+	add_child(level)
+	level.generate(3, Balance.section("run"))
+	var player := Player.new()
+	player.sound_parent = level
+	var room := level.rooms[0]
+	player.position = level.cell_center(room.get_center())
+	level.add_child(player)
+	var e := Enemy.new()
+	e.setup(Balance.section("enemies")["ghoul"], level, null, 1)
+	e.position = player.position + Vector2(60, 0)
+	level.add_child(e)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(player._pick_target(260.0) == e, "bow targets a lit enemy in range")
+	player.torch_on = false
+	_check(player._pick_target(260.0) == null, "bow ignores an enemy standing in the dark")
+	player.torch_on = true
+	var hp0 := e.hp
+	e.take_damage(30.0, player.global_position)
+	_check(e.hp == hp0 - 30.0 and e.state == Enemy.State.CHASE, "a hit hurts the ghoul and makes it hunt")
+	level.queue_free()
