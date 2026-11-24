@@ -15,6 +15,7 @@ var exit_stairs: ExitStairs
 var hud: Hud
 var touch: TouchControls
 var darkness: CanvasModulate
+var panel: LoadoutPanel
 var rng := RandomNumberGenerator.new()
 var run_cfg: Dictionary = {}
 
@@ -25,6 +26,13 @@ func _ready() -> void:
 
 	darkness = CanvasModulate.new()
 	add_child(darkness)
+
+	# Combat text above the darkness, following the camera.
+	var overlay := CanvasLayer.new()
+	overlay.layer = 1
+	overlay.follow_viewport_enabled = true
+	overlay.add_to_group("float_layer")
+	add_child(overlay)
 
 	hud = Hud.new()
 	add_child(hud)
@@ -55,6 +63,7 @@ func _new_world() -> void:
 		world.queue_free()
 	world = Node2D.new()
 	world.name = "World"
+	world.y_sort_enabled = true  # whoever stands lower on screen is drawn in front
 	add_child(world)
 	level = null
 	camp = null
@@ -147,16 +156,44 @@ func _process(_delta: float) -> void:
 				enter_camp()
 		Mode.CAMP:
 			var at_gate := camp.is_at_gate(player.global_position)
-			touch.interact_ready = at_gate
-			hud.set_hint(act + "  Abstieg beginnen" if at_gate else "")
-			if at_gate and Input.is_action_just_pressed("interact"):
-				start_run()
+			var at_quiver := camp.is_at_quiver(player.global_position)
+			touch.interact_ready = at_gate or at_quiver
+			if at_gate:
+				hud.set_hint(act + "  Abstieg beginnen")
+			elif at_quiver:
+				hud.set_hint(act + "  Köcher: Skill-Reihe bauen")
+			else:
+				hud.set_hint("")
+			if Input.is_action_just_pressed("interact"):
+				if at_gate:
+					start_run()
+				elif at_quiver:
+					open_loadout()
 		Mode.RUN:
 			var near_exit := player.global_position.distance_to(exit_stairs.global_position) < EXIT_REACH
 			touch.interact_ready = near_exit
 			hud.set_hint(act + "  Hinabsteigen" if near_exit else "")
 			if near_exit and Input.is_action_just_pressed("interact"):
 				descend()
+
+
+## Opens the skill-row menu; the game pauses meanwhile.
+func open_loadout() -> void:
+	if panel != null:
+		return
+	touch._release_everything()
+	panel = LoadoutPanel.new()
+	panel.closed.connect(_on_loadout_closed)
+	add_child(panel)
+	get_tree().paused = true
+
+
+func _on_loadout_closed() -> void:
+	panel = null
+	get_tree().paused = false
+	if player != null:
+		player.rotation_row.set_loadout(Game.loadout)
+	hud.set_hint("")
 
 
 func _on_player_died() -> void:

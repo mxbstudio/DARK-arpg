@@ -7,10 +7,6 @@
 		"speed": 115,
 		"step_length": 34,
 		"shot": {
-			"damage": 30,
-			"interval": 0.55,
-			"range": 260,
-			"speed": 520,
 			"noise_radius": 120
 		},
 		"dodge": {
@@ -84,6 +80,7 @@
 			"lunge_speed": 240,
 			"hurt_slow": 0.5,
 			"hurt_slow_time": 0.25,
+			"chill_slow": 0.45,
 			"hearing_mult": 1.0,
 			"hearing_occluded_mult": 0.6,
 			"lose_sight_after": 3.0,

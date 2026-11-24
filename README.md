@@ -19,7 +19,7 @@ Ein extrem düsteres Action-RPG für den PC im Stil von Diablo – **kein Horror
 
 ### Automatische Angriffe mit Kombo-Aufbau
 - Der Held greift von selbst an (wie Death Must Die / Vampire Survivors), aber **nur Gegner, die er im Licht sieht**. Was man nur hört, muss man erst ins Licht bringen.
-- Geplant: eine **Skill-Reihe** in Slots, die von links nach rechts feuert und dann von vorne beginnt. Jeder Skill hat ein Gewicht (wie lange bis zum nächsten Slot). Vorbereiter („der nächste Treffer ist kritisch“) und Auslöser („wenn dieser Treffer kritisch ist, heilst du“) ergeben Kombos.
+- Eine **Skill-Reihe** in Slots, die von links nach rechts feuert und dann von vorne beginnt. Jeder Skill hat ein Gewicht (wie lange bis zum nächsten Slot). Vorbereiter („der nächste Treffer ist kritisch“) und Auslöser („wenn dieser Treffer kritisch ist, heilst du“) ergeben Kombos.
 - Das Können liegt in Laufen, Ausweichen, Licht und dem Bau der Reihe. Gegner kündigen Angriffe an, auch hörbar.
 
 ### Run-Struktur (wie Hades)
@@ -56,7 +56,8 @@ Alternativ per Kommandozeile: `godot --path .`
 | Leertaste / Rechtsklick | Ausweichen (kurz unverwundbar) |
 | F | Fackel an/aus |
 | T | Rüstung wechseln Leder ↔ Platte (nur im Prototyp) |
-| E | Tor im Lager: Abstieg beginnen · Treppe: tiefer · nach dem Tod: zurück ins Lager |
+| E | Lager: am Köcher die Skill-Reihe bauen, am Tor den Abstieg beginnen · Treppe: tiefer · nach dem Tod: zurück ins Lager |
+| Esc | Köcher-Menü schließen |
 | H | Hilfe ein/aus |
 
 ## Am Handy spielen (Web-Version)
@@ -84,6 +85,7 @@ Hinweise: Das erste Laden dauert etwas (die Engine ist ca. 10 MB komprimiert, di
 - **Akustik**: Gegner sind über positionsbezogenen Sound hörbar (Schritte mit Krallenscharren, Atmen), bevor man sie sieht. Geräusche hinter Wänden klingen gedämpft. Die Treppe nach unten erkennt man an einem kalten Luftzug, Kohlebecken knistern.
 - **Lärm als Mechanik**: Eigene Schritte, Schläge und Ausweichrollen erzeugen Lärm, den Gegner hören. Plattenrüstung schützt deutlich besser, ist aber etwa dreimal so weit hörbar und macht langsamer. Ein Knurren signalisiert, dass man gehört wurde.
 - **Lager**: Gemaltes Startlager aus Aschenreich mit Herzfeuer und flackernden Flammen. Am Tor im Norden beginnt der Lauf.
+- **Skill-Reihe**: Am Köcher im Lager legst du 5 Skills in die Slots. Sie feuern von links nach rechts (Gewicht statt Cooldown) und warten, solange kein Ziel da ist. 9 Archer-Skills: Angriffe (Schneller Schuss, Ballistenbolzen, Streuschuss, Leuchtpfeil), Angriffe mit Auslöser (Blutzoll: heilt bei Krit, Splitterpfeil: splittert beim Töten) und Vorbereiter (Todesmal: nächster Angriff krit, Doppelsehne: ein Pfeil mehr, Frostspitze: verlangsamt). Beispiel-Kombo: Todesmal → Blutzoll. Der Leuchtpfeil trifft auch Gegner, die du nur hörst, und erhellt die Stelle.
 - **Kampf**: Der Archer schießt automatisch auf den nächsten Gegner, der im Licht und in Sichtlinie steht. Ghule (Sprite aus Aschenreich) kündigen Angriffe mit einem anschwellenden Knurren an, das genau beim Zuschlagen gipfelt, und lassen sich davon nicht abbringen. Ausweichen ist die Verteidigung.
 - **Run-Struktur**: Lager → zufallsgenerierte Ebenen, jede Tiefe mehr Gegner. Tod beendet den Lauf und führt zurück ins Lager. Meta-Fortschritt (Läufe, beste Tiefe, Asche als Währung) wird gespeichert, kann aber noch nicht ausgegeben werden.
 
@@ -95,7 +97,8 @@ Alle Sounds werden zur Laufzeit synthetisiert (keine externen Assets).
 project.godot          Godot-Projekt
 data/balance.json      Alle Gameplay-Werte (Schaden, Lautstärke, Sicht, Tempo …)
 data/sprites.json      Sprite-Sheets (Raster, Animationen)
-data/camp.json         Startlager (Begehfläche, Tor, Feuer)
+data/camp.json         Startlager (Begehfläche, Tor, Köcher, Feuer)
+data/skills.json       Skill-Reihe: alle Skills, Werte, Kombos, Icons
 assets/                Grafiken aus Aschenreich (Herkunft: assets/README.md)
 scenes/main.tscn       Startszene
 scripts/
@@ -103,7 +106,8 @@ scripts/
   autoload/            Balance (Werte), Events (Lärm-Signal), Game (Input, Meta-Save), Sfx (Sound-Synthese)
   world/               Level-Generator, Lager, Treppe, Kohlebecken, Licht-Abfrage
   actors/              Spieler (Archer), Gegner (Ghul), Pfeile
-  ui/                  HUD, Touch-Steuerung
+  combat/              Skill-Reihe, Skill-Icons, Leuchtpfeil-Licht
+  ui/                  HUD, Touch-Steuerung, Köcher-Menü, Kampftext
   util/                Licht-Helfer, Sprite-Animation
 tests/                 Headless-Tests
 export_presets.cfg     Export-Einstellungen (Web)
@@ -115,9 +119,9 @@ Tests: `godot --headless --path . -s res://tests/run_tests.gd`
 
 ## Offene Punkte
 
-- **Nächster Schritt:** Skill-Reihe mit Slots, Vorbereitern und Auslösern (Archer-Skills aus Aschenreich), Auswahl im Lager
-- Danach: Paladin als zweite Klasse, Kultist und Brute als Gegner, gemalte Karten aus Aschenreich als besondere Räume zwischen den Zufalls-Gängen
-- Meta-Progression: Asche im Lager ausgeben (Upgrades, Startausrüstung)
+- **Nächster Schritt:** Paladin als zweite Klasse, Kultist und Brute als Gegner, gemalte Karten aus Aschenreich als besondere Räume zwischen den Zufalls-Gängen
+- Skills im Lauf finden statt alle frei wählen; mehr Vorbereiter/Auslöser (Gift, Feuer, Ketten)
+- Meta-Progression: Asche im Lager ausgeben (Upgrades, Skills freischalten)
 - Rüstung, Waffen und Fähigkeiten als Beute bzw. Auswahl im Lauf statt Umschalten per Taste
 - Weitere Gegnertypen (z. B. lautlose Jäger, Gegner, die Licht meiden oder anziehen)
 - Touch: Zielen per zweitem Stick statt Auto-Zielen (optional), Leistungs-Optionen für schwache Handys

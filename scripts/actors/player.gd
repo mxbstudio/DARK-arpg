@@ -37,12 +37,13 @@ var _step_accum := 0.0
 var _buffered := ""
 var _buffer_t := 0.0
 var _flicker_t := 0.0
-var _shot_cd := 0.0
 var _shot_anim_t := 0.0
 var _hurt_anim_t := 0.0
 var _light: PointLight2D
 var _camera: Camera2D
 var _sprite: SheetSprite
+## The skill row (loadout chosen in the camp).
+var rotation_row: SkillRotation
 
 
 func _ready() -> void:
@@ -64,6 +65,7 @@ func _ready() -> void:
 	shape.shape = circle
 	add_child(shape)
 
+	rotation_row = SkillRotation.new(Game.loadout)
 	_sprite = SheetSprite.new()
 	add_child(_sprite)
 	_sprite.setup("archer")
@@ -149,8 +151,8 @@ func _physics_process(delta: float) -> void:
 	var moved := global_position.distance_to(before)
 	if state == State.FREE:
 		_footsteps(moved)
-	if not peaceful:
-		_auto_shoot(delta)
+	if not peaceful and state != State.DODGE:
+		rotation_row.tick(delta, self)
 	_update_light(delta)
 	_update_anim(delta, moved / maxf(delta, 0.0001))
 
@@ -160,33 +162,11 @@ func _enter(s: State) -> void:
 	state_time = 0.0
 
 
-# --- bow ---------------------------------------------------------------------------
+# --- bow / skills -----------------------------------------------------------------
 
-func _auto_shoot(delta: float) -> void:
-	_shot_cd -= delta
-	if _shot_cd > 0.0 or state == State.DODGE:
-		return
-	var shot: Dictionary = cfg["shot"]
-	var target := _pick_target(float(shot["range"]))
-	if target == null:
-		return
-	_shot_cd = float(shot["interval"])
-	var dir := (target.global_position - global_position).normalized()
-	facing = dir
-	var arrow := Arrow.new()
-	arrow.velocity = dir * float(shot["speed"])
-	arrow.damage = float(shot["damage"])
-	arrow.life = float(shot["range"]) / float(shot["speed"]) * 1.3
-	arrow.source_pos = global_position
-	arrow.position = global_position + dir * 10.0 + Vector2(0, -8)
-	sound_parent.add_child(arrow)
-	_shot_anim_t = SHOT_ANIM
-	Sfx.play_at("swing", global_position, sound_parent, -10.0)
-	Events.noise_emitted.emit(global_position, float(shot["noise_radius"]), self)
-
-
-## Nearest living enemy in range that stands in light and in line of sight.
-func _pick_target(max_range: float) -> Enemy:
+## Nearest living enemy in range and line of sight. Unless `allow_dark`, it must
+## also stand in light (you only shoot what you can see).
+func find_target(max_range: float, allow_dark := false) -> Enemy:
 	var best: Enemy = null
 	var best_d := max_range
 	for node in get_tree().get_nodes_in_group("enemies"):
@@ -196,11 +176,58 @@ func _pick_target(max_range: float) -> Enemy:
 		var d := global_position.distance_to(enemy.global_position)
 		if d > best_d or not _line_of_sight(enemy.global_position):
 			continue
-		if not Lighting.is_lit(self, enemy.global_position):
+		if not allow_dark and not Lighting.is_lit(self, enemy.global_position):
 			continue
 		best_d = d
 		best = enemy
 	return best
+
+
+## Fires an attack skill with the modifiers collected from preps.
+func fire_skill(s: Dictionary, mods: Dictionary, target: Enemy) -> void:
+	var rot := SkillRotation.config()
+	var count := int(s.get("arrows", 1)) + int(mods.get("extra_arrows", 0))
+	var spread := deg_to_rad(float(s.get("spread_deg", 0.0)))
+	if count > 1 and spread == 0.0:
+		spread = deg_to_rad(float(rot["extra_arrow_spread_deg"]) * (count - 1))
+	var dir := (target.global_position - global_position).normalized()
+	facing = dir
+	for i in count:
+		var a := 0.0 if count == 1 else lerpf(-spread * 0.5, spread * 0.5, float(i) / (count - 1))
+		var d := dir.rotated(a)
+		var crit: bool = mods.get("crit", false) or randf() < float(rot["crit_chance"])
+		var arrow := Arrow.new()
+		arrow.velocity = d * float(s["speed"])
+		arrow.crit = crit
+		arrow.damage = float(s["damage"]) * (float(rot["crit_mult"]) if crit else 1.0)
+		arrow.life = float(s["range"]) / float(s["speed"]) * 1.3
+		arrow.pierce = int(s.get("pierce", 0))
+		arrow.knockback = float(s.get("knockback", 0.0))
+		arrow.chill = float(mods.get("chill", 0.0))
+		arrow.on_crit = s.get("on_crit", {})
+		arrow.on_kill = s.get("on_kill", {})
+		if s.has("light_radius"):
+			arrow.flare = {"light_radius": s["light_radius"], "light_time": s["light_time"]}
+		arrow.color = Color.from_string(String(s["color"]), Color.WHITE)
+		arrow.shooter = self
+		arrow.source_pos = global_position
+		arrow.position = global_position + d * 10.0 + Vector2(0, -8)
+		sound_parent.add_child(arrow)
+	_shot_anim_t = SHOT_ANIM
+	Sfx.play_at("swing", global_position, sound_parent, -10.0 + (3.0 if s.has("pierce") else 0.0))
+	Events.noise_emitted.emit(global_position, float(cfg["shot"]["noise_radius"]), self)
+
+
+## A prep skill was readied: show it briefly.
+func on_prep(s: Dictionary) -> void:
+	FloatText.spawn(self, global_position + Vector2(0, -48), String(s["name"]), Color.from_string(String(s["color"]), Color.WHITE))
+
+
+func heal_amount(amount: float) -> void:
+	if state == State.DEAD:
+		return
+	hp = minf(hp + amount, max_hp)
+	FloatText.spawn(self, global_position + Vector2(0, -40), "+%d" % int(amount), Color(0.55, 0.95, 0.55))
 
 
 func _line_of_sight(to: Vector2) -> bool:

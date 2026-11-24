@@ -7,6 +7,8 @@ var total_runs := 0
 var best_depth := 0
 ## Meta currency earned per run. Spending it is not implemented yet.
 var ash := 0
+## Skill row chosen in the camp (persists between runs).
+var loadout: Array[String] = []
 ## True while the player is using a touchscreen (switches off on keyboard/mouse input).
 var touch_mode := false
 
@@ -16,6 +18,7 @@ signal touch_mode_changed(active: bool)
 func _ready() -> void:
 	_setup_input()
 	load_meta()
+	loadout = SkillRotation.sanitize(loadout)
 	touch_mode = _starts_in_touch_mode()
 	_apply_content_scale()
 
@@ -34,6 +37,8 @@ func _apply_content_scale() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event.device == InputEvent.DEVICE_ID_EMULATION:
+		return  # mouse events emulated from touch (needed for UI buttons)
 	var touch := event is InputEventScreenTouch or event is InputEventScreenDrag
 	var desktop := event is InputEventKey or event is InputEventMouseButton
 	if (touch and not touch_mode) or (desktop and touch_mode and not _starts_in_touch_mode()):
@@ -58,6 +63,8 @@ func load_meta() -> void:
 	total_runs = int(cfg.get_value("meta", "total_runs", 0))
 	best_depth = int(cfg.get_value("meta", "best_depth", 0))
 	ash = int(cfg.get_value("meta", "ash", 0))
+	var saved: Array = cfg.get_value("meta", "loadout", [])
+	loadout = SkillRotation.sanitize(saved)
 
 
 func save_meta() -> void:
@@ -65,6 +72,7 @@ func save_meta() -> void:
 	cfg.set_value("meta", "total_runs", total_runs)
 	cfg.set_value("meta", "best_depth", best_depth)
 	cfg.set_value("meta", "ash", ash)
+	cfg.set_value("meta", "loadout", loadout)
 	cfg.save(SAVE_PATH)
 
 

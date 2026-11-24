@@ -22,6 +22,7 @@ func _run() -> void:
 	await _test_touch_controls()
 	await _test_camp()
 	await _test_auto_shot()
+	await _test_rotation()
 	print("Tests: %d checks, %d failures" % [_checks, _failures])
 	finished.emit(_failures)
 
@@ -150,11 +151,64 @@ func _test_auto_shot() -> void:
 	level.add_child(e)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	_check(player._pick_target(260.0) == e, "bow targets a lit enemy in range")
+	_check(player.find_target(260.0) == e, "bow targets a lit enemy in range")
 	player.torch_on = false
-	_check(player._pick_target(260.0) == null, "bow ignores an enemy standing in the dark")
+	_check(player.find_target(260.0) == null, "bow ignores an enemy standing in the dark")
 	player.torch_on = true
 	var hp0 := e.hp
 	e.take_damage(30.0, player.global_position)
 	_check(e.hp == hp0 - 30.0 and e.state == Enemy.State.CHASE, "a hit hurts the ghoul and makes it hunt")
+	level.queue_free()
+
+
+func _test_rotation() -> void:
+	var level := Level.new()
+	add_child(level)
+	level.generate(3, Balance.section("run"))
+	Game.loadout = SkillRotation.sanitize(["mark", "bloodtoll", "quick", "twin", "heavy"])
+	var player := Player.new()
+	player.sound_parent = level
+	player.position = level.cell_center(level.rooms[0].get_center())
+	level.add_child(player)
+	var e := Enemy.new()
+	e.setup(Balance.section("enemies")["ghoul"], level, null, 1)
+	e.position = player.position + Vector2(70, 0)
+	level.add_child(e)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var row := player.rotation_row
+	_check(row.loadout.size() == int(SkillRotation.config()["slots"]), "loadout has one skill per slot")
+	row.timer = 0.0
+	row.index = 0
+	row.pending = {}
+	row.tick(0.0, player)
+	_check(row.pending.get("crit", false) and row.index == 1, "prep (mark) loads a crit for the next attack")
+	var before := level.get_children().filter(func(n: Node) -> bool: return n is Arrow).size()
+	row.timer = 0.0
+	row.tick(0.0, player)
+	var arrows := level.get_children().filter(func(n: Node) -> bool: return n is Arrow)
+	_check(arrows.size() == before + 1, "attack fires an arrow")
+	var arrow: Arrow = arrows[arrows.size() - 1]
+	_check(arrow.crit and row.pending.is_empty(), "the attack consumes the prep and crits")
+	# Trigger: a crit with Blutzoll heals.
+	player.hp = 50.0
+	arrow.hit_enemy(e)
+	_check(player.hp > 50.0, "on-crit trigger (Blutzoll) heals the player")
+	# The row holds its place while no target is visible.
+	player.torch_on = false
+	e.global_position = player.global_position + Vector2(400, 0)
+	row.index = 2
+	row.timer = 0.0
+	row.tick(0.0, player)
+	_check(row.index == 2, "the row waits while there is no target")
+	# Extra arrows from Doppelsehne.
+	player.torch_on = true
+	e.global_position = player.global_position + Vector2(70, 0)
+	row.pending = {"extra_arrows": 1}
+	before = level.get_children().filter(func(n: Node) -> bool: return n is Arrow).size()
+	row.index = 2
+	row.timer = 0.0
+	row.tick(0.0, player)
+	_check(level.get_children().filter(func(n: Node) -> bool: return n is Arrow).size() == before + 2, "extra-arrow prep adds an arrow")
+	Game.loadout = SkillRotation.sanitize([])
 	level.queue_free()
