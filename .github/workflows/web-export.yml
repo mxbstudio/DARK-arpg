@@ -57,6 +57,11 @@ jobs:
         run: |
           mkdir -p build/web
           godot --headless --path . --export-release Web build/web/index.html
+          # Cache-Busting: Browser würden sonst die alte Spieldatei (index.pck) weiterverwenden.
+          V="${GITHUB_SHA::8}"
+          mv build/web/index.pck "build/web/index-$V.pck"
+          sed -i "s/\"index.pck\":/\"index-$V.pck\":/; s/GODOT_CONFIG = {/GODOT_CONFIG = {\"mainPack\":\"index-$V.pck\",/" build/web/index.html
+          grep -q "index-$V.pck" build/web/index.html
           touch build/web/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3
