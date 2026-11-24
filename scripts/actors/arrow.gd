@@ -21,6 +21,8 @@ var on_kill: Dictionary = {}
 var flare: Dictionary = {}
 var color := Color(0.75, 0.68, 0.55)
 var shooter: Player
+## Burn damage per second applied by crits (boon Glutherz).
+var crit_burn := 0.0
 
 var _hit: Array[Node] = []
 
@@ -65,6 +67,10 @@ func hit_enemy(enemy: Enemy) -> bool:
 			enemy.apply_chill(chill)
 		if knockback > 0.0:
 			enemy.push(velocity.normalized() * knockback)
+	if shooter != null:
+		shooter.on_damage_dealt(damage, killed)
+	if crit and crit_burn > 0.0 and not killed:
+		enemy.apply_burn(crit_burn, 3.0)
 	if crit and on_crit.has("heal") and shooter != null:
 		shooter.heal_amount(float(on_crit["heal"]))
 	if killed and on_kill.has("burst_damage"):

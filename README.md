@@ -86,7 +86,13 @@ Hinweise: Das erste Laden dauert etwas (die Engine ist ca. 10 MB komprimiert, di
 - **Lärm als Mechanik**: Eigene Schritte, Schläge und Ausweichrollen erzeugen Lärm, den Gegner hören. Plattenrüstung schützt deutlich besser, ist aber etwa dreimal so weit hörbar und macht langsamer. Ein Knurren signalisiert, dass man gehört wurde.
 - **Lager**: Gemaltes Startlager aus Aschenreich mit Herzfeuer und flackernden Flammen. Am Tor im Norden beginnt der Lauf.
 - **Skill-Reihe**: Am Köcher im Lager legst du 5 Skills in die Slots. Sie feuern von links nach rechts (Gewicht statt Cooldown) und warten, solange kein Ziel da ist. 9 Archer-Skills: Angriffe (Schneller Schuss, Ballistenbolzen, Streuschuss, Leuchtpfeil), Angriffe mit Auslöser (Blutzoll: heilt bei Krit, Splitterpfeil: splittert beim Töten) und Vorbereiter (Todesmal: nächster Angriff krit, Doppelsehne: ein Pfeil mehr, Frostspitze: verlangsamt). Beispiel-Kombo: Todesmal → Blutzoll. Der Leuchtpfeil trifft auch Gegner, die du nur hörst, und erhellt die Stelle.
-- **Kampf**: Der Archer schießt automatisch auf den nächsten Gegner, der im Licht und in Sichtlinie steht. Ghule (Sprite aus Aschenreich) kündigen Angriffe mit einem anschwellenden Knurren an, das genau beim Zuschlagen gipfelt, und lassen sich davon nicht abbringen. Ausweichen ist die Verteidigung.
+- **Kampf**: Der Archer schießt automatisch auf den nächsten Gegner, der im Licht und in Sichtlinie steht. Gegner kündigen Angriffe hörbar an und lassen sich davon nicht abbringen. Ausweichen ist die Verteidigung.
+- **Gegner** (Sprites aus Aschenreich):
+  - **Ghul** (ab Tiefe 1): schnell, springt an; Knurren gipfelt beim Zuschlagen.
+  - **Kultist** (ab Tiefe 2): flüstert im Dunkeln, hält Abstand, wirft langsame dunkle Geschosse (Gesang kündigt sie an) und **löscht Kohlebecken**.
+  - **Brute** (ab Tiefe 3): langsam und zäh, dröhnende Schritte weit hörbar, Flächenschlag nach langem, tiefem Grollen.
+- **Seelen & Stufen** (wie Vampire Survivors): Getötete Gegner lassen Seelen fallen, die zu dir fliegen. Bei jedem Stufenaufstieg wählst du 1 von 3 Gaben der Götter aus Aschenreich (Vorgoth, Morrah, Ashkar, Nhal), z. B. Zorn (+Schaden), Raserei (schnellere Reihe), Meuchler (Krit), Glutherz (Krits brennen), Seelenernte (Heilung pro Kill). Stufen und Gaben gelten nur für den aktuellen Lauf.
+- **Basaltschlucht**: Jede 3. Tiefe ist die gemalte Arena aus Aschenreich statt eines Zufalls-Dungeons, mit mehr Gegnern.
 - **Run-Struktur**: Lager → zufallsgenerierte Ebenen, jede Tiefe mehr Gegner. Tod beendet den Lauf und führt zurück ins Lager. Meta-Fortschritt (Läufe, beste Tiefe, Asche als Währung) wird gespeichert, kann aber noch nicht ausgegeben werden.
 
 Alle Sounds werden zur Laufzeit synthetisiert (keine externen Assets).
@@ -99,15 +105,17 @@ data/balance.json      Alle Gameplay-Werte (Schaden, Lautstärke, Sicht, Tempo �
 data/sprites.json      Sprite-Sheets (Raster, Animationen)
 data/camp.json         Startlager (Begehfläche, Tor, Köcher, Feuer)
 data/skills.json       Skill-Reihe: alle Skills, Werte, Kombos, Icons
+data/boons.json        Gaben der Götter für Level-ups
+data/maps.json         Gemalte Arenen (Basaltschlucht)
 assets/                Grafiken aus Aschenreich (Herkunft: assets/README.md)
 scenes/main.tscn       Startszene
 scripts/
   main.gd              Run-Steuerung: Ebenen bauen, Tiefe, Tod, Neustart
   autoload/            Balance (Werte), Events (Lärm-Signal), Game (Input, Meta-Save), Sfx (Sound-Synthese)
   world/               Level-Generator, Lager, Treppe, Kohlebecken, Licht-Abfrage
-  actors/              Spieler (Archer), Gegner (Ghul), Pfeile
+  actors/              Spieler (Archer), Gegner (Ghul, Kultist, Brute), Pfeile, Geschosse, Seelen
   combat/              Skill-Reihe, Skill-Icons, Leuchtpfeil-Licht
-  ui/                  HUD, Touch-Steuerung, Köcher-Menü, Kampftext
+  ui/                  HUD, Touch-Steuerung, Köcher-Menü, Level-up-Menü, Kampftext
   util/                Licht-Helfer, Sprite-Animation
 tests/                 Headless-Tests
 export_presets.cfg     Export-Einstellungen (Web)
@@ -119,7 +127,8 @@ Tests: `godot --headless --path . -s res://tests/run_tests.gd`
 
 ## Offene Punkte
 
-- **Nächster Schritt:** Paladin als zweite Klasse, Kultist und Brute als Gegner, gemalte Karten aus Aschenreich als besondere Räume zwischen den Zufalls-Gängen
+- **Nächster Schritt:** Paladin als zweite Klasse (Nahkampf-Reihe)
+- Kapellenruine als zweite Arena, Boss (Lightless Bishop), Elite-Gegner
 - Skills im Lauf finden statt alle frei wählen; mehr Vorbereiter/Auslöser (Gift, Feuer, Ketten)
 - Meta-Progression: Asche im Lager ausgeben (Upgrades, Skills freischalten)
 - Rüstung, Waffen und Fähigkeiten als Beute bzw. Auswahl im Lauf statt Umschalten per Taste

@@ -51,19 +51,14 @@
 	},
 	"audio": {
 		"occluded_db": -9.0,
-		"enemy_step_db": -6.0,
-		"enemy_step_audible_px": 460,
-		"breath_db": -10.0,
-		"breath_audible_px": 300,
-		"growl_db": 0.0,
-		"growl_audible_px": 520,
 		"alert_db": -6.0,
 		"heard_db": -12.0,
 		"ambient_drone_db": -22.0,
 		"exit_wind_db": -8.0,
 		"exit_wind_audible_px": 800,
 		"brazier_fire_db": -14.0,
-		"brazier_fire_audible_px": 380
+		"brazier_fire_audible_px": 380,
+		"soul_db": -12.0
 	},
 	"enemies": {
 		"ghoul": {
@@ -85,7 +80,98 @@
 			"hearing_occluded_mult": 0.6,
 			"lose_sight_after": 3.0,
 			"step_interval": 0.42,
-			"breath_interval": [2.5, 5.5]
+			"breath_interval": [2.5, 5.5],
+			"sprite": "ghoul",
+			"behavior": "melee",
+			"xp": 1,
+			"sounds": {
+				"step": "enemy_step",
+				"step_db": -6.0,
+				"step_audible_px": 460,
+				"idle": "breath",
+				"idle_db": -10.0,
+				"idle_audible_px": 300,
+				"windup": "growl",
+				"windup_db": 0.0,
+				"windup_audible_px": 520
+			}
+		},
+		"cultist": {
+			"sprite": "cultist",
+			"behavior": "ranged",
+			"xp": 2,
+			"max_hp": 60,
+			"radius": 10,
+			"speed_wander": 28,
+			"speed_investigate": 45,
+			"speed_chase": 62,
+			"damage": 12,
+			"attack_range": 0,
+			"windup": 0.9,
+			"active": 0.1,
+			"recovery": 0.8,
+			"lunge_speed": 0,
+			"cast_range": 230,
+			"keep_distance": 140,
+			"bolt_speed": 150,
+			"bolt_radius": 6,
+			"snuff_range": 320,
+			"snuff_time": 2.5,
+			"hurt_slow": 0.5,
+			"hurt_slow_time": 0.25,
+			"chill_slow": 0.45,
+			"hearing_mult": 1.2,
+			"hearing_occluded_mult": 0.6,
+			"lose_sight_after": 4.0,
+			"step_interval": 0.5,
+			"breath_interval": [3.0, 6.0],
+			"sounds": {
+				"step": "step_soft",
+				"step_db": -14.0,
+				"step_audible_px": 260,
+				"idle": "whisper",
+				"idle_db": -8.0,
+				"idle_audible_px": 380,
+				"windup": "chant",
+				"windup_db": -2.0,
+				"windup_audible_px": 560
+			}
+		},
+		"brute": {
+			"sprite": "brute",
+			"behavior": "melee",
+			"xp": 6,
+			"max_hp": 300,
+			"radius": 15,
+			"speed_wander": 24,
+			"speed_investigate": 38,
+			"speed_chase": 52,
+			"damage": 40,
+			"attack_range": 30,
+			"windup": 1.25,
+			"active": 0.2,
+			"recovery": 1.3,
+			"lunge_speed": 70,
+			"slam_radius": 48,
+			"hurt_slow": 0.8,
+			"hurt_slow_time": 0.15,
+			"chill_slow": 0.6,
+			"hearing_mult": 0.8,
+			"hearing_occluded_mult": 0.6,
+			"lose_sight_after": 3.0,
+			"step_interval": 0.65,
+			"breath_interval": [3.5, 7.0],
+			"sounds": {
+				"step": "brute_step",
+				"step_db": -1.0,
+				"step_audible_px": 760,
+				"idle": "breath",
+				"idle_db": -6.0,
+				"idle_audible_px": 360,
+				"windup": "brute_growl",
+				"windup_db": 2.0,
+				"windup_audible_px": 640
+			}
 		}
 	},
 	"run": {
@@ -100,7 +186,14 @@
 		"braziers_min": 1,
 		"braziers_max": 3,
 		"heal_on_descend": 0.25,
-		"ash_per_depth": 10
+		"ash_per_depth": 10,
+		"enemy_mix": [
+			{"type": "ghoul", "from_depth": 1, "weight": 6},
+			{"type": "cultist", "from_depth": 2, "weight": 2},
+			{"type": "brute", "from_depth": 3, "weight": 1}
+		],
+		"arena_every": 3,
+		"arena_enemy_mult": 1.6
 	},
 	"touch": {
 		"aim_assist_px": 170,
@@ -110,5 +203,13 @@
 		"big_button_radius_px": 62,
 		"button_alpha": 0.38,
 		"content_scale": [800, 450]
+	},
+	"progression": {
+		"xp_base": 8,
+		"xp_per_level": 5.2,
+		"xp_per_level_sq": 0.5,
+		"pickup_radius_px": 55,
+		"soul_speed": 280,
+		"choices": 3
 	}
 }

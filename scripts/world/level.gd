@@ -22,6 +22,11 @@ var exit_cell := Vector2i.ZERO
 var astar := AStarGrid2D.new()
 var rng := RandomNumberGenerator.new()
 
+## True for a painted arena (Aschenreich map) instead of generated rooms.
+var painted := false
+var map_name := ""
+var _map_braziers: Array[Vector2] = []
+
 var _edge := PackedByteArray()
 var _shade := PackedFloat32Array()
 var _decals: Array[Dictionary] = []
@@ -43,6 +48,100 @@ func generate(seed_value: int, cfg: Dictionary) -> void:
 	_build_visuals()
 	z_index = -10
 	queue_redraw()
+
+
+## Builds a floor from a painted map (data/maps.json): the picture is the floor,
+## its walkable outline and rocks become collision, light occluders and the A* grid.
+func generate_painted(seed_value: int, map: Dictionary, run_cfg: Dictionary) -> void:
+	rng.seed = seed_value
+	painted = true
+	map_name = String(map["name"])
+	cell = int(run_cfg["cell"])
+	var sc := float(map["scale"])
+	var size: Array = map["size"]
+	width = ceili(float(size[0]) * sc / cell)
+	height = ceili(float(size[1]) * sc / cell)
+	z_index = -10
+
+	var bg := Sprite2D.new()
+	bg.texture = load(String(map["image"]))
+	bg.centered = false
+	bg.scale = Vector2(sc, sc)
+	add_child(bg)
+
+	var outline := PackedVector2Array()
+	for p: Array in map["walkable"]:
+		outline.append(Vector2(float(p[0]), float(p[1])) * sc)
+	var blockers: Array[PackedVector2Array] = []
+	for h: Array in map["holes"]:
+		var c := Vector2(float(h[0]), float(h[1])) * sc
+		var pts := PackedVector2Array()
+		for k in 14:
+			var a := TAU * k / 14.0
+			pts.append(c + Vector2(cos(a) * float(h[2]), sin(a) * float(h[3])) * sc)
+		blockers.append(pts)
+	for r: Array in map["rocks"]:
+		var pts := PackedVector2Array()
+		for p: Array in r:
+			pts.append(Vector2(float(p[0]), float(p[1])) * sc)
+		blockers.append(pts)
+
+	# Grid for pathfinding and spawns: a cell is open if its centre is walkable.
+	grid.resize(width * height)
+	grid.fill(SOLID)
+	for y in height:
+		for x in width:
+			var c := cell_center(Vector2i(x, y))
+			if not Geometry2D.is_point_in_polygon(c, outline):
+				continue
+			var blocked := false
+			for b in blockers:
+				if Geometry2D.is_point_in_polygon(c, b):
+					blocked = true
+					break
+			if not blocked:
+				grid[y * width + x] = OPEN
+	rooms = [Rect2i(0, 0, width, height)]
+
+	# Collision: outline as a closed chain, rocks as solid polygons that also cast shadows.
+	var body := StaticBody2D.new()
+	body.collision_layer = WALL_LAYER
+	body.collision_mask = 0
+	add_child(body)
+	var segs := PackedVector2Array()
+	for i in outline.size():
+		segs.append(outline[i])
+		segs.append(outline[(i + 1) % outline.size()])
+	var edge := CollisionShape2D.new()
+	var concave := ConcavePolygonShape2D.new()
+	concave.segments = segs
+	edge.shape = concave
+	body.add_child(edge)
+	for b in blockers:
+		var col := CollisionPolygon2D.new()
+		col.polygon = b
+		body.add_child(col)
+		var poly := OccluderPolygon2D.new()
+		poly.polygon = b
+		var occ := LightOccluder2D.new()
+		occ.occluder = poly
+		add_child(occ)
+
+	start_cell = _nearest_open(world_to_cell(Vector2(float(map["start"][0]), float(map["start"][1])) * sc))
+	exit_cell = _nearest_open(world_to_cell(Vector2(float(map["exit"][0]), float(map["exit"][1])) * sc))
+	_map_braziers.clear()
+	for p: Array in map["braziers"]:
+		_map_braziers.append(Vector2(float(p[0]), float(p[1])) * sc)
+	_build_astar()
+
+
+func _nearest_open(c: Vector2i) -> Vector2i:
+	for r in range(0, 12):
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if is_open(c + Vector2i(dx, dy)):
+					return c + Vector2i(dx, dy)
+	return c
 
 
 # --- queries -------------------------------------------------------------------
@@ -85,7 +184,7 @@ func spawn_points(count: int, min_dist_cells: int) -> Array[Vector2]:
 		for y in range(r.position.y, r.end.y):
 			for x in range(r.position.x, r.end.x):
 				var c := Vector2i(x, y)
-				if c.distance_to(start_cell) >= min_dist_cells:
+				if is_open(c) and c.distance_to(start_cell) >= min_dist_cells:
 					candidates.append(c)
 	_shuffle(candidates)
 	var picked: Array[Vector2i] = []
@@ -105,6 +204,10 @@ func spawn_points(count: int, min_dist_cells: int) -> Array[Vector2]:
 
 
 func brazier_points(count: int) -> Array[Vector2]:
+	if painted:
+		var spots := _map_braziers.duplicate()
+		_shuffle(spots)
+		return spots.slice(0, mini(count, spots.size()))
 	var pool: Array[Rect2i] = []
 	for r in rooms:
 		if not r.has_point(start_cell):
@@ -316,6 +419,8 @@ func _draw_wall(r: Rect2, v: float, front_face: bool) -> void:
 
 
 func _draw() -> void:
+	if painted:
+		return
 	for y in height:
 		for x in width:
 			var r := Rect2(x * cell, y * cell, cell, cell)

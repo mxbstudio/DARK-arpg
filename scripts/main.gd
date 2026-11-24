@@ -16,6 +16,7 @@ var hud: Hud
 var touch: TouchControls
 var darkness: CanvasModulate
 var panel: LoadoutPanel
+var levelup: LevelUpPanel
 var rng := RandomNumberGenerator.new()
 var run_cfg: Dictionary = {}
 
@@ -91,6 +92,7 @@ func enter_camp() -> void:
 	player = Player.new()
 	player.peaceful = true
 	player.died.connect(_on_player_died)
+	player.leveled_up.connect(_on_leveled_up)
 	_place_player(camp.spawn_point)
 	hud.in_camp = true
 
@@ -110,7 +112,12 @@ func build_floor() -> void:
 
 	level = Level.new()
 	world.add_child(level)
-	level.generate(rng.randi(), run_cfg)
+	var arena := depth % int(run_cfg["arena_every"]) == 0
+	if arena:
+		level.generate_painted(rng.randi(), Balance.data_file("res://data/maps.json")["basalt"], run_cfg)
+		hud.show_banner(level.map_name)
+	else:
+		level.generate(rng.randi(), run_cfg)
 
 	var braziers := rng.randi_range(int(run_cfg["braziers_min"]), int(run_cfg["braziers_max"]))
 	for p in level.brazier_points(braziers):
@@ -125,14 +132,33 @@ func build_floor() -> void:
 	_place_player(level.cell_center(level.start_cell))
 
 	var count := int(run_cfg["enemies_base"]) + int(run_cfg["enemies_per_depth"]) * (depth - 1)
-	var enemy_cfg: Dictionary = Balance.section("enemies")["ghoul"]
+	if arena:
+		count = int(count * float(run_cfg["arena_enemy_mult"]))
+	var foes := Balance.section("enemies")
 	for p in level.spawn_points(count, int(run_cfg["spawn_min_dist_cells"])):
+		var type := _roll_enemy_type()
 		var e := Enemy.new()
-		e.setup(enemy_cfg, level, player, rng.randi())
+		e.setup(foes[type], level, player, rng.randi(), type)
 		e.position = p
 		world.add_child(e)
 
 	hud.depth = depth
+
+
+## Weighted pick from run.enemy_mix among the types allowed at this depth.
+func _roll_enemy_type() -> String:
+	var mix: Array = run_cfg["enemy_mix"]
+	var total := 0.0
+	for m: Dictionary in mix:
+		if depth >= int(m["from_depth"]):
+			total += float(m["weight"])
+	var r := rng.randf() * total
+	for m: Dictionary in mix:
+		if depth >= int(m["from_depth"]):
+			r -= float(m["weight"])
+			if r <= 0.0:
+				return String(m["type"])
+	return "ghoul"
 
 
 func descend() -> void:
@@ -194,6 +220,26 @@ func _on_loadout_closed() -> void:
 	if player != null:
 		player.rotation_row.set_loadout(Game.loadout)
 	hud.set_hint("")
+
+
+## A level-up pauses the game and offers boons; several in a row are shown one by one.
+func _on_leveled_up() -> void:
+	if levelup != null or player.pending_levels <= 0 or mode != Mode.RUN:
+		return
+	touch._release_everything()
+	levelup = LevelUpPanel.new()
+	levelup.player = player
+	levelup.chosen.connect(_on_boon_chosen)
+	add_child.call_deferred(levelup)
+	get_tree().paused = true
+
+
+func _on_boon_chosen(_id: String) -> void:
+	levelup = null
+	player.pending_levels -= 1
+	get_tree().paused = false
+	if player.pending_levels > 0:
+		_on_leveled_up()
 
 
 func _on_player_died() -> void:

@@ -1,14 +1,18 @@
 class_name Enemy
 extends CharacterBody2D
-## Ghoul: hunts by hearing and sight. Audible (steps, breath, growl) long before
-## it is visible. Telegraphs attacks with a rising growl that peaks on impact.
+## A foe of the depths (ghoul, cultist, brute; values in balance.json "enemies").
+## Hunts by hearing and sight and is audible (steps, breath/whisper, windup sound)
+## long before it is visible. Attacks are telegraphed and cannot be interrupted.
+## behavior "melee": lunge or slam (slam_radius); "ranged": keeps its distance,
+## casts slow bolts and smothers fires (braziers) to keep the dark.
 
-enum State { WANDER, INVESTIGATE, CHASE, WINDUP, ATTACK, RECOVER, DEAD }
+enum State { WANDER, INVESTIGATE, CHASE, WINDUP, ATTACK, RECOVER, SNUFF, DEAD }
 
 const WALL_MASK := 1
 const HURT_FLASH := 0.15
 
 var cfg: Dictionary = {}
+var type_id := "ghoul"
 var level: Level
 var player: Player
 var hp := 1.0
@@ -36,11 +40,19 @@ var _breath_t := 0.0
 var _slow_t := 0.0
 var _chill_t := 0.0
 var _knock := Vector2.ZERO
+var _burn_dps := 0.0
+var _burn_t := 0.0
+var _burn_tick := 0.0
 var _sprite: SheetSprite
+var _snd: Dictionary = {}
+var _snuff_target: Brazier
+var _ranged := false
+var _atk_half := 3
 
 
-func setup(p_cfg: Dictionary, p_level: Level, p_player: Player, seed_value: int) -> void:
+func setup(p_cfg: Dictionary, p_level: Level, p_player: Player, seed_value: int, p_type := "") -> void:
 	cfg = p_cfg
+	type_id = p_type if p_type != "" else String(p_cfg.get("sprite", "ghoul"))
 	level = p_level
 	player = p_player
 	rng.seed = seed_value
@@ -62,7 +74,10 @@ func _ready() -> void:
 	add_child(shape)
 	_sprite = SheetSprite.new()
 	add_child(_sprite)
-	_sprite.setup("ghoul")
+	_sprite.setup(String(cfg["sprite"]))
+	_snd = cfg["sounds"]
+	_ranged = cfg["behavior"] == "ranged"
+	_atk_half = maxi(1, (Balance.data_file("res://data/sprites.json")[String(cfg["sprite"])]["anims"]["atk"] as Array).size() / 2)
 	facing = Vector2.from_angle(rng.randf() * TAU)
 	_idle_t = rng.randf_range(0.5, 2.5)
 	_breath_t = rng.randf_range(0.5, 3.0)
@@ -73,7 +88,7 @@ func is_alive() -> bool:
 	return state != State.DEAD
 
 
-## Returns true when this hit killed the ghoul.
+## Returns true when this hit killed the foe.
 func take_damage(amount: float, from_pos: Vector2) -> bool:
 	if state == State.DEAD:
 		return false
@@ -85,11 +100,16 @@ func take_damage(amount: float, from_pos: Vector2) -> bool:
 		return true
 	# Hits slow the ghoul briefly but never interrupt an attack (poise): the player must dodge.
 	_slow_t = float(cfg["hurt_slow_time"])
-	if state == State.WANDER or state == State.INVESTIGATE:
+	if state == State.WANDER or state == State.INVESTIGATE or state == State.SNUFF:
 		target_pos = from_pos
 		_last_seen_t = 0.0
 		_spot_player()
 	return false
+
+
+func apply_burn(dps: float, duration: float) -> void:
+	_burn_dps = maxf(_burn_dps, dps)
+	_burn_t = maxf(_burn_t, duration)
 
 
 func apply_chill(duration: float) -> void:
@@ -129,10 +149,22 @@ func _physics_process(delta: float) -> void:
 			velocity = velocity.move_toward(Vector2.ZERO, 700.0 * delta)
 			if state_time >= float(cfg["recovery"]):
 				_enter(State.CHASE)
+		State.SNUFF:
+			_tick_snuff(delta, sees)
 
 	if _slow_t > 0.0 and state != State.ATTACK:
 		_slow_t -= delta
 		velocity *= float(cfg["hurt_slow"])
+	if _burn_t > 0.0:
+		_burn_t -= delta
+		_burn_tick += delta
+		if _burn_tick >= 0.5:
+			_burn_tick = 0.0
+			hp -= _burn_dps * 0.5
+			FloatText.spawn(self, global_position + Vector2(0, -24), "%d" % int(_burn_dps * 0.5), Color(1.0, 0.55, 0.2))
+			if hp <= 0.0:
+				_die()
+				return
 	if _chill_t > 0.0:
 		_chill_t -= delta
 		velocity *= float(cfg["chill_slow"])
@@ -147,7 +179,7 @@ func _enter(s: State) -> void:
 	state = s
 	state_time = 0.0
 	if s == State.WINDUP:
-		Sfx.play_on("growl", self, float(_audio["growl_db"]), float(_audio["growl_audible_px"]))
+		Sfx.play_on(String(_snd["windup"]), self, float(_snd["windup_db"]), float(_snd["windup_audible_px"]))
 
 
 # --- states --------------------------------------------------------------------
@@ -155,6 +187,8 @@ func _enter(s: State) -> void:
 func _tick_wander(delta: float, sees: bool) -> void:
 	if sees:
 		_spot_player()
+		return
+	if _ranged and _find_fire_to_snuff():
 		return
 	if not _wandering:
 		velocity = Vector2.ZERO
@@ -189,6 +223,9 @@ func _tick_chase(delta: float, sees: bool) -> void:
 		return
 	var to := player.global_position - global_position
 	var speed := float(cfg["speed_chase"])
+	if _ranged:
+		_tick_chase_ranged(delta, sees, to, speed)
+		return
 	if sees and to.length() <= float(cfg["attack_range"]) + radius + Player.RADIUS:
 		velocity = Vector2.ZERO
 		facing = to.normalized()
@@ -214,9 +251,20 @@ func _tick_windup(delta: float) -> void:
 
 func _tick_attack() -> void:
 	velocity = _attack_dir * float(cfg["lunge_speed"])
-	if not _has_hit and player != null and not player.is_dead():
+	if _ranged:
+		if not _has_hit:
+			_has_hit = true
+			_cast_bolt()
+	elif not _has_hit and player != null and not player.is_dead():
 		var to := player.global_position - global_position
-		if to.length() <= float(cfg["attack_range"]) + radius + Player.RADIUS and absf(_attack_dir.angle_to(to)) < deg_to_rad(70.0):
+		var hit := false
+		if cfg.has("slam_radius"):
+			# Slam: a circle in front of the brute, any angle.
+			var center := global_position + _attack_dir * (radius + float(cfg["slam_radius"]) * 0.5)
+			hit = player.global_position.distance_to(center) <= float(cfg["slam_radius"]) + Player.RADIUS
+		else:
+			hit = to.length() <= float(cfg["attack_range"]) + radius + Player.RADIUS and absf(_attack_dir.angle_to(to)) < deg_to_rad(70.0)
+		if hit:
 			_has_hit = true
 			player.take_damage(float(cfg["damage"]), global_position)
 	if state_time >= float(cfg["active"]):
@@ -224,8 +272,64 @@ func _tick_attack() -> void:
 
 
 func _spot_player() -> void:
-	Sfx.play_on("alert", self, float(_audio["alert_db"]), float(_audio["growl_audible_px"]))
+	Sfx.play_on("alert", self, float(_audio["alert_db"]), float(_snd["windup_audible_px"]))
+	_snuff_target = null
 	_enter(State.CHASE)
+
+
+## Ranged foes stay between keep_distance and cast_range and cast when they see you.
+func _tick_chase_ranged(delta: float, sees: bool, to: Vector2, speed: float) -> void:
+	var dist := to.length()
+	facing = to.normalized()
+	if sees and dist < float(cfg["keep_distance"]):
+		velocity = -to.normalized() * speed * 0.8
+	elif sees and dist <= float(cfg["cast_range"]):
+		velocity = Vector2.ZERO
+		_enter(State.WINDUP)
+	else:
+		_follow(target_pos, speed, delta)
+
+
+func _cast_bolt() -> void:
+	if player == null or get_parent() == null:
+		return
+	var bolt := EnemyBolt.new()
+	var dir := (player.global_position - global_position).normalized()
+	bolt.velocity = dir * float(cfg["bolt_speed"])
+	bolt.damage = float(cfg["damage"])
+	bolt.hit_radius = float(cfg["bolt_radius"])
+	bolt.position = global_position + dir * 12.0 + Vector2(0, -10)
+	get_parent().add_child(bolt)
+	Sfx.play_at("bolt", global_position, get_parent() as Node2D, -4.0, 500.0)
+
+
+## Cultists put out braziers they can reach: the dark is their ally.
+func _find_fire_to_snuff() -> bool:
+	for node in get_tree().get_nodes_in_group("braziers"):
+		var b := node as Brazier
+		if b != null and b.is_lit() and global_position.distance_to(b.global_position) <= float(cfg["snuff_range"]):
+			_snuff_target = b
+			_enter(State.SNUFF)
+			return true
+	return false
+
+
+func _tick_snuff(delta: float, sees: bool) -> void:
+	if sees:
+		_spot_player()
+		return
+	if _snuff_target == null or not _snuff_target.is_lit():
+		_enter(State.WANDER)
+		return
+	var goal := _snuff_target.global_position + (global_position - _snuff_target.global_position).normalized() * 18.0
+	if global_position.distance_to(goal) > 10.0 and state_time < 12.0:
+		_follow(goal, float(cfg["speed_investigate"]), delta)
+		return
+	velocity = Vector2.ZERO
+	facing = (_snuff_target.global_position - global_position).normalized()
+	if _snuff_target.smother(delta, float(cfg["snuff_time"])):
+		_snuff_target = null
+		_enter(State.WANDER)
 
 
 # --- perception ----------------------------------------------------------------
@@ -249,7 +353,7 @@ func _line_of_sight(to: Vector2) -> bool:
 func _on_noise(pos: Vector2, noise_radius: float, source: Node) -> void:
 	if source == self or not is_inside_tree():
 		return
-	if state != State.WANDER and state != State.INVESTIGATE:
+	if state != State.WANDER and state != State.INVESTIGATE and state != State.SNUFF:
 		return
 	var hearing := noise_radius * float(cfg["hearing_mult"])
 	if not _line_of_sight(pos):
@@ -258,7 +362,7 @@ func _on_noise(pos: Vector2, noise_radius: float, source: Node) -> void:
 		return
 	if state == State.WANDER:
 		# Audible feedback for the player: "it heard you".
-		Sfx.play_on("alert", self, float(_audio["heard_db"]), float(_audio["growl_audible_px"]))
+		Sfx.play_on("alert", self, float(_audio["heard_db"]), float(_snd["windup_audible_px"]))
 	target_pos = pos
 	_enter(State.INVESTIGATE)
 
@@ -293,14 +397,14 @@ func _tick_sounds(delta: float) -> void:
 		_step_t -= delta * clampf(speed / float(cfg["speed_chase"]), 0.35, 1.5)
 		if _step_t <= 0.0:
 			_step_t = float(cfg["step_interval"])
-			Sfx.play_on("enemy_step", self, float(_audio["enemy_step_db"]), float(_audio["enemy_step_audible_px"]))
+			Sfx.play_on(String(_snd["step"]), self, float(_snd["step_db"]), float(_snd["step_audible_px"]))
 	if state == State.WINDUP or state == State.ATTACK:
 		return
 	_breath_t -= delta
 	if _breath_t <= 0.0:
 		var interval: Array = cfg["breath_interval"]
 		_breath_t = rng.randf_range(float(interval[0]), float(interval[1])) * (0.6 if state == State.CHASE else 1.0)
-		Sfx.play_on("breath", self, float(_audio["breath_db"]), float(_audio["breath_audible_px"]))
+		Sfx.play_on(String(_snd["idle"]), self, float(_snd["idle_db"]), float(_snd["idle_audible_px"]))
 
 
 func _die() -> void:
@@ -313,6 +417,7 @@ func _die() -> void:
 	Sfx.play_on("enemy_death", self, 0.0, 600.0)
 	_sprite.modulate = Color.WHITE
 	_sprite.play("die", false, 9.0)
+	Soul.drop(self, global_position, int(cfg["xp"]))
 
 
 func _update_anim() -> void:
@@ -322,12 +427,13 @@ func _update_anim() -> void:
 	match state:
 		State.WINDUP:
 			# Rear back during the windup, strike on the lunge.
-			var w := float(cfg["windup"])
-			_sprite.play("atk", false, 3.0 / w)
+			_sprite.play("atk", false, _atk_half / float(cfg["windup"]))
 		State.ATTACK:
-			_sprite.play("atk", false, 3.0 / float(cfg["active"]))
+			_sprite.play("atk", false, _atk_half / maxf(float(cfg["active"]), 0.05))
 		State.RECOVER:
 			_sprite.play("idle", true, 4.0)
+		State.SNUFF:
+			_sprite.play("atk" if velocity.length() < 5.0 else "walk", true, 5.0)
 		_:
 			if _slow_t > 0.0:
 				_sprite.play("hurt", false, 14.0)
