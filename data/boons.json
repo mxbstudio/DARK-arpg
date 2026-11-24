@@ -1,0 +1,167 @@
+{
+	"_comment": "Level-up boons from Aschenreich's gods. Each level adds every effect once ('add' to a player stat). Stats: see Player.BASE_STATS. heal_now heals immediately.",
+	"gods": {
+		"vorgoth": {
+			"name": "Vorgoth · Blut",
+			"color": "#c0392b"
+		},
+		"morrah": {
+			"name": "Morrah · Schatten",
+			"color": "#8e6bbf"
+		},
+		"ashkar": {
+			"name": "Ashkar · Asche",
+			"color": "#e67e22"
+		},
+		"nhal": {
+			"name": "Nhal · Seelen",
+			"color": "#7fb7c9"
+		}
+	},
+	"boons": {
+		"wrath": {
+			"god": "vorgoth",
+			"name": "Zorn",
+			"max": 5,
+			"desc": "+20 % Schaden.",
+			"effects": [
+				{
+					"stat": "dmg_mult",
+					"add": 0.2
+				}
+			]
+		},
+		"thirst": {
+			"god": "vorgoth",
+			"name": "Blutdurst",
+			"max": 3,
+			"desc": "Du heilst 3 % des Schadens, den du verursachst.",
+			"effects": [
+				{
+					"stat": "lifesteal",
+					"add": 0.03
+				}
+			]
+		},
+		"frenzy": {
+			"god": "vorgoth",
+			"name": "Raserei",
+			"max": 5,
+			"desc": "Deine Skill-Reihe läuft 8 % schneller.",
+			"effects": [
+				{
+					"stat": "weight_mult",
+					"add": -0.08
+				}
+			]
+		},
+		"swift": {
+			"god": "morrah",
+			"name": "Leichtfuß",
+			"max": 4,
+			"desc": "+10 % Lauftempo.",
+			"effects": [
+				{
+					"stat": "speed_mult",
+					"add": 0.1
+				}
+			]
+		},
+		"backstab": {
+			"god": "morrah",
+			"name": "Meuchler",
+			"max": 4,
+			"desc": "+8 % Krit-Chance, +25 % Krit-Schaden.",
+			"effects": [
+				{
+					"stat": "crit_chance",
+					"add": 0.08
+				},
+				{
+					"stat": "crit_dmg",
+					"add": 0.25
+				}
+			]
+		},
+		"mist": {
+			"god": "morrah",
+			"name": "Nebelschritt",
+			"max": 3,
+			"desc": "Ausweichen kostet 20 % weniger Ausdauer und schützt länger.",
+			"effects": [
+				{
+					"stat": "dodge_cost_mult",
+					"add": -0.2
+				},
+				{
+					"stat": "iframes",
+					"add": 0.05
+				}
+			]
+		},
+		"torch": {
+			"god": "ashkar",
+			"name": "Fackelträger",
+			"max": 3,
+			"desc": "Deine Fackel leuchtet 12 % weiter.",
+			"effects": [
+				{
+					"stat": "torch_mult",
+					"add": 0.12
+				}
+			]
+		},
+		"kindle": {
+			"god": "ashkar",
+			"name": "Glutherz",
+			"max": 3,
+			"desc": "Kritische Treffer setzen Gegner kurz in Brand (8 Schaden pro Sekunde, 3 s).",
+			"effects": [
+				{
+					"stat": "crit_burn",
+					"add": 8.0
+				}
+			]
+		},
+		"pull": {
+			"god": "nhal",
+			"name": "Seelensog",
+			"max": 3,
+			"desc": "Seelen kommen aus 50 % größerer Entfernung zu dir.",
+			"effects": [
+				{
+					"stat": "pickup_mult",
+					"add": 0.5
+				}
+			]
+		},
+		"harvest": {
+			"god": "nhal",
+			"name": "Seelenernte",
+			"max": 3,
+			"desc": "Jeder getötete Gegner heilt dich um 2.",
+			"effects": [
+				{
+					"stat": "heal_on_kill",
+					"add": 2.0
+				}
+			]
+		},
+		"hide": {
+			"god": "nhal",
+			"name": "Grabhaut",
+			"max": 5,
+			"desc": "+20 maximales Leben, heilt sofort 20.",
+			"effects": [
+				{
+					"stat": "max_hp",
+					"add": 20.0
+				},
+				{
+					"stat": "heal_now",
+					"add": 20.0
+				}
+			]
+		}
+	}
+}

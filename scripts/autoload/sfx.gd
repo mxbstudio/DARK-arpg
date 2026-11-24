@@ -24,7 +24,8 @@ func _ready() -> void:
 ## Synthesizes all sounds, yielding a frame between them so the page/window stays
 ## responsive (important on slow web/mobile runtimes). Emits `finished_loading` when done.
 func _synthesize() -> void:
-	var growl_len := float(Balance.section("enemies")["ghoul"]["windup"])
+	var foes := Balance.section("enemies")
+	var growl_len := float(foes["ghoul"]["windup"])
 	var jobs: Array[Array] = [
 		["step_soft", _step_soft, 3],
 		["step_plate", _step_plate, 3],
@@ -42,6 +43,14 @@ func _synthesize() -> void:
 		["wind", _wind, 1],
 		["drone", _drone, 1],
 		["fire", _fire, 1],
+		["soul", _soul, 1],
+		["levelup", _levelup, 1],
+		["brute_step", _brute_step, 2],
+		["brute_growl", _growl_deep.bind(float(foes["brute"]["windup"])), 1],
+		["chant", _chant.bind(float(foes["cultist"]["windup"])), 1],
+		["whisper", _whisper, 2],
+		["bolt", _bolt, 1],
+		["snuff", _snuff, 1],
 	]
 	for idx in jobs.size():
 		var job := jobs[idx]
@@ -367,3 +376,112 @@ func _fire() -> AudioStreamWAV:
 		crackle *= 0.993
 		b[i] = lp * 1.2 + _noise() * crackle
 	return _to_wav(b, 0.6, true)
+
+
+# --- souls / new foes ----------------------------------------------------------
+
+## Soft glassy chime when a soul is absorbed.
+func _soul() -> AudioStreamWAV:
+	var b := _buf(0.35)
+	for i in b.size():
+		var t := float(i) / RATE
+		var f := 880.0 + 440.0 * minf(t / 0.08, 1.0)
+		b[i] = (sin(TAU * f * t) * 0.6 + sin(TAU * f * 2.01 * t) * 0.25) * exp(-t * 11.0) * minf(t * 200.0, 1.0)
+	return _to_wav(b, 0.5)
+
+
+func _levelup() -> AudioStreamWAV:
+	var b := _buf(1.4)
+	var notes: Array[float] = [220.0, 277.2, 329.6, 440.0]
+	for i in b.size():
+		var t := float(i) / RATE
+		var v := 0.0
+		for k in notes.size():
+			var t0 := k * 0.12
+			if t >= t0:
+				var tt := t - t0
+				v += (sin(TAU * notes[k] * tt) + 0.3 * sin(TAU * notes[k] * 3.0 * tt)) * exp(-tt * 2.5) * 0.3
+		b[i] = v
+	return _to_wav(b, 0.6)
+
+
+## Heavy, far-carrying footfall of a brute (armor clink on top).
+func _brute_step() -> AudioStreamWAV:
+	var b := _buf(0.5)
+	var lp := 0.0
+	var a := _lp(140.0)
+	var f0 := _rng.randf_range(38.0, 46.0)
+	for i in b.size():
+		var t := float(i) / RATE
+		lp += a * (_noise() - lp)
+		var boom := (sin(TAU * f0 * t * (1.0 - t * 0.6)) * 1.2 + lp * 4.0) * exp(-t * 9.0)
+		var clink := sin(TAU * 1450.0 * t + 1.0) * exp(-maxf(t - 0.03, 0.0) * 30.0) * 0.12 * (1.0 if t > 0.03 else 0.0)
+		b[i] = boom + clink
+	return _to_wav(b, 0.95)
+
+
+## Brute attack telegraph: very low, slow crescendo.
+func _growl_deep(duration: float) -> AudioStreamWAV:
+	var b := _buf(duration)
+	var lp := 0.0
+	var a := _lp(450.0)
+	var phase := 0.0
+	for i in b.size():
+		var t := float(i) / RATE
+		var u := t / duration
+		phase += 48.0 * (1.0 + 0.06 * sin(TAU * 3.5 * t)) * (1.0 + 0.25 * u) / RATE
+		var saw := 2.0 * (phase - floorf(phase)) - 1.0
+		lp += a * (saw * (1.0 + 0.7 * _noise()) - lp)
+		b[i] = lp * pow(u, 1.2) * clampf((1.0 - u) * 20.0, 0.0, 1.0)
+	return _to_wav(b, 0.95)
+
+
+## Cultist cast telegraph: a rising, wavering chant.
+func _chant(duration: float) -> AudioStreamWAV:
+	var b := _buf(duration)
+	for i in b.size():
+		var t := float(i) / RATE
+		var u := t / duration
+		var f := 196.0 * (1.0 + 0.5 * u) * (1.0 + 0.02 * sin(TAU * 6.0 * t))
+		var v := sin(TAU * f * t) + 0.5 * sin(TAU * f * 1.5 * t) + 0.25 * sin(TAU * f * 2.0 * t)
+		b[i] = v * pow(u, 1.3) * clampf((1.0 - u) * 25.0, 0.0, 1.0) * (0.7 + 0.3 * sin(TAU * 9.0 * t))
+	return _to_wav(b, 0.6)
+
+
+## Breathy whisper (replaces breathing for cultists).
+func _whisper() -> AudioStreamWAV:
+	var b := _buf(1.2)
+	var lo := 0.0
+	var hi := 0.0
+	var a_lo := _lp(4500.0)
+	var a_hi := _lp(1800.0)
+	for i in b.size():
+		var t := float(i) / RATE
+		var n := _noise()
+		lo += a_lo * (n - lo)
+		hi += a_hi * (n - hi)
+		var syll := maxf(sin(TAU * _rng.randf_range(3.8, 4.2) * t), 0.0)
+		b[i] = (lo - hi) * syll * sin(PI * t / 1.2)
+	return _to_wav(b, 0.5)
+
+
+func _bolt() -> AudioStreamWAV:
+	var b := _buf(0.5)
+	for i in b.size():
+		var t := float(i) / RATE
+		var f := 520.0 - 300.0 * t
+		b[i] = (sin(TAU * f * t + sin(TAU * 31.0 * t) * 3.0) * 0.6 + _noise() * 0.2) * exp(-t * 5.0)
+	return _to_wav(b, 0.6)
+
+
+## A fire being smothered.
+func _snuff() -> AudioStreamWAV:
+	var b := _buf(0.9)
+	var hp := 0.0
+	var a := _lp(1500.0)
+	for i in b.size():
+		var t := float(i) / RATE
+		var n := _noise()
+		hp += a * (n - hp)
+		b[i] = (n - hp) * exp(-t * 3.5) * 0.8
+	return _to_wav(b, 0.6)

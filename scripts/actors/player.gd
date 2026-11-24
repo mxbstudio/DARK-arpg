@@ -4,6 +4,15 @@ extends CharacterBody2D
 ## at the nearest enemy that is lit and in line of sight. Armor makes noise.
 
 signal died
+signal leveled_up
+
+## Run stats changed by level-up boons (data/boons.json). Reset every run.
+const BASE_STATS := {
+	"dmg_mult": 1.0, "lifesteal": 0.0, "weight_mult": 1.0, "speed_mult": 1.0,
+	"crit_chance": 0.0, "crit_dmg": 0.0, "dodge_cost_mult": 1.0, "iframes": 0.0,
+	"torch_mult": 1.0, "crit_burn": 0.0, "pickup_mult": 1.0, "heal_on_kill": 0.0,
+	"max_hp": 0.0, "heal_now": 0.0,
+}
 
 enum State { FREE, DODGE, DEAD }
 
@@ -44,6 +53,14 @@ var _camera: Camera2D
 var _sprite: SheetSprite
 ## The skill row (loadout chosen in the camp).
 var rotation_row: SkillRotation
+## Run progression: souls collected, level, chosen boons (id -> level).
+var xp := 0
+var level := 1
+var xp_needed := 1
+var boons: Dictionary = {}
+var stats: Dictionary = BASE_STATS.duplicate()
+## Level-ups not yet spent on a boon.
+var pending_levels := 0
 
 
 func _ready() -> void:
@@ -51,6 +68,7 @@ func _ready() -> void:
 	vision = Balance.section("vision")
 	max_hp = float(cfg["max_hp"])
 	hp = max_hp
+	xp_needed = xp_for_level(level)
 	max_stamina = float(cfg["max_stamina"])
 	stamina = max_stamina
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
@@ -100,13 +118,64 @@ func snap_camera() -> void:
 
 ## How far the player's own light reveals enemies (see Lighting).
 func light_reach() -> float:
-	return float(vision["torch_radius_px"] if torch_on else vision["dark_radius_px"]) * float(vision["reveal_fraction"])
+	var r := float(vision["torch_radius_px"]) * stat("torch_mult") if torch_on else float(vision["dark_radius_px"])
+	return r * float(vision["reveal_fraction"])
+
+
+func stat(stat_name: String) -> float:
+	return float(stats.get(stat_name, 0.0))
+
+
+# --- progression ------------------------------------------------------------------
+
+static func xp_for_level(lvl: int) -> int:
+	var prog := Balance.section("progression")
+	return int(floor(float(prog["xp_base"]) + lvl * float(prog["xp_per_level"]) + lvl * lvl * float(prog["xp_per_level_sq"])))
+
+
+func add_xp(amount: int) -> void:
+	xp += amount
+	Sfx.play_at("soul", global_position, sound_parent, float(Balance.section("audio")["soul_db"]))
+	while xp >= xp_needed:
+		xp -= xp_needed
+		level += 1
+		xp_needed = xp_for_level(level)
+		pending_levels += 1
+		leveled_up.emit()
+
+
+func boon_level(id: String) -> int:
+	return int(boons.get(id, 0))
+
+
+## Applies one level of a boon (see data/boons.json).
+func take_boon(id: String) -> void:
+	var b: Dictionary = Balance.data_file("res://data/boons.json")["boons"][id]
+	boons[id] = boon_level(id) + 1
+	for e: Dictionary in b["effects"]:
+		var st := String(e["stat"])
+		var add := float(e["add"])
+		if st == "heal_now":
+			heal_amount(add)
+		elif st == "max_hp":
+			max_hp += add
+		else:
+			stats[st] = stat(st) + add
+	_apply_torch()
+
+
+## Called by arrows: life steal and on-kill effects from boons.
+func on_damage_dealt(amount: float, killed: bool) -> void:
+	if stat("lifesteal") > 0.0:
+		hp = minf(hp + amount * stat("lifesteal"), max_hp)
+	if killed and stat("heal_on_kill") > 0.0:
+		heal_amount(stat("heal_on_kill"))
 
 
 func take_damage(amount: float, from_pos: Vector2) -> void:
 	if state == State.DEAD:
 		return
-	if state == State.DODGE and state_time < float(cfg["dodge"]["iframes"]):
+	if state == State.DODGE and state_time < float(cfg["dodge"]["iframes"]) + stat("iframes"):
 		return  # dodged through the attack
 	hp = maxf(hp - amount * (1.0 - float(armor()["damage_reduction"])), 0.0)
 	_hurt_flash = HURT_FLASH
@@ -133,7 +202,7 @@ func _physics_process(delta: float) -> void:
 	var input_dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	match state:
 		State.FREE:
-			velocity = input_dir * float(cfg["speed"]) * float(armor()["speed_mult"])
+			velocity = input_dir * float(cfg["speed"]) * float(armor()["speed_mult"]) * stat("speed_mult")
 			if input_dir.length() > 0.1:
 				facing = input_dir.normalized()
 			if _consume_buffer("dodge"):
@@ -195,11 +264,12 @@ func fire_skill(s: Dictionary, mods: Dictionary, target: Enemy) -> void:
 	for i in count:
 		var a := 0.0 if count == 1 else lerpf(-spread * 0.5, spread * 0.5, float(i) / (count - 1))
 		var d := dir.rotated(a)
-		var crit: bool = mods.get("crit", false) or randf() < float(rot["crit_chance"])
+		var crit: bool = mods.get("crit", false) or randf() < float(rot["crit_chance"]) + stat("crit_chance")
 		var arrow := Arrow.new()
 		arrow.velocity = d * float(s["speed"])
 		arrow.crit = crit
-		arrow.damage = float(s["damage"]) * (float(rot["crit_mult"]) if crit else 1.0)
+		arrow.damage = float(s["damage"]) * stat("dmg_mult") * (float(rot["crit_mult"]) + stat("crit_dmg") if crit else 1.0)
+		arrow.crit_burn = stat("crit_burn")
 		arrow.life = float(s["range"]) / float(s["speed"]) * 1.3
 		arrow.pierce = int(s.get("pierce", 0))
 		arrow.knockback = float(s.get("knockback", 0.0))
@@ -278,7 +348,7 @@ func _spend_stamina(cost: float) -> bool:
 
 
 func _try_dodge(input_dir: Vector2) -> void:
-	if not _spend_stamina(float(cfg["dodge"]["stamina_cost"])):
+	if not _spend_stamina(float(cfg["dodge"]["stamina_cost"]) * stat("dodge_cost_mult")):
 		return
 	_dodge_dir = input_dir.normalized() if input_dir.length() > 0.1 else facing
 	_enter(State.DODGE)
@@ -306,7 +376,7 @@ func _apply_torch() -> void:
 	if _light == null:
 		return
 	if torch_on:
-		LightUtil.configure(_light, float(vision["torch_radius_px"]), float(vision["torch_energy"]), Balance.to_color(vision["torch_color"]))
+		LightUtil.configure(_light, float(vision["torch_radius_px"]) * stat("torch_mult"), float(vision["torch_energy"]), Balance.to_color(vision["torch_color"]))
 	else:
 		LightUtil.configure(_light, float(vision["dark_radius_px"]), float(vision["dark_energy"]), Balance.to_color(vision["dark_color"]))
 

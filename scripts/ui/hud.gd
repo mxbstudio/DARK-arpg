@@ -5,7 +5,7 @@ extends CanvasLayer
 const HELP_TEXT := """WASD  bewegen      Leertaste / Rechtsklick  Ausweichen
 F  Fackel an/aus      T  Rüstung wechseln (Prototyp)      E  Tor / Treppe      H  Hilfe
 
-Dein Bogen schießt von selbst – aber nur auf Gegner, die du im Licht siehst.
+Dein Bogen schießt von selbst – aber nur auf Gegner, die du im Licht siehst. Seelen getöteter Gegner bringen Stufen und Gaben.
 Kopfhörer empfohlen. Hör hin: Schritte und Atem verraten Gegner im Dunkeln.
 Ein anschwellendes Knurren kündigt einen Angriff an – weich aus, wenn es gipfelt.
 Plattenrüstung schützt, ist aber laut. Ohne Fackel sehen dich Gegner schlechter.
@@ -14,7 +14,7 @@ Im Lager: am Köcher (rechts) baust du deine Skill-Reihe, am Tor im Norden begin
 const TOUCH_HELP_TEXT := """Linke Bildschirmhälfte: Stick zum Laufen (erscheint, wo du tippst)
 Rechts: Weg (Ausweichen), Fackel, Aktion (Tor / Treppe), Rüst. (Rüstung wechseln)
 
-Dein Bogen schießt von selbst – aber nur auf Gegner, die du im Licht siehst.
+Dein Bogen schießt von selbst – aber nur auf Gegner, die du im Licht siehst. Seelen getöteter Gegner bringen Stufen und Gaben.
 Kopfhörer empfohlen. Hör hin: Schritte und Atem verraten Gegner im Dunkeln.
 Ein anschwellendes Knurren kündigt einen Angriff an – weich aus, wenn es gipfelt.
 Plattenrüstung schützt, ist aber laut. Ohne Fackel sehen dich Gegner schlechter.
@@ -33,6 +33,8 @@ var _help_visible := false
 var _death_visible := false
 var _help_timer := 0.0
 var _loading := false
+var _banner := ""
+var _banner_t := 0.0
 
 
 func _ready() -> void:
@@ -83,11 +85,18 @@ func show_death(reached_depth: int, ash_gained: int) -> void:
 		"Tippe auf „Lager“, um zurückzukehren" if Game.touch_mode else "[E]  Zurück ins Lager"]
 
 
+## Large fading title in the upper third (e.g. entering an arena).
+func show_banner(text: String) -> void:
+	_banner = text
+	_banner_t = 3.0
+
+
 func set_hint(text: String) -> void:
 	_hint.text = text
 
 
 func _process(delta: float) -> void:
+	_banner_t = maxf(_banner_t - delta, 0.0)
 	if _help_timer > 0.0:
 		_help_timer -= delta
 		if _help_timer <= 0.0:
@@ -109,6 +118,26 @@ func _draw_bars() -> void:
 	_bar(Vector2(24, 20), Vector2(260, 12), player.hp / player.max_hp, Color(0.55, 0.08, 0.06))
 	_bar(Vector2(24, 38), Vector2(260, 7), player.stamina / player.max_stamina, Color(0.55, 0.5, 0.35))
 	_draw_rotation()
+	_draw_xp()
+	if _banner_t > 0.0:
+		var font := ThemeDB.fallback_font
+		var a := clampf(_banner_t, 0.0, 1.0)
+		var fs := 34
+		var w := font.get_string_size(_banner, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		_bars.draw_string(font, Vector2((_bars.size.x - w) * 0.5, _bars.size.y * 0.28), _banner, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.85, 0.78, 0.66, a))
+
+
+## Soul bar (experience) at the very bottom, with the level above its left end.
+func _draw_xp() -> void:
+	if in_camp:
+		return
+	var w := minf(520.0, _bars.size.x * 0.6)
+	var pos := Vector2((_bars.size.x - w) * 0.5, _bars.size.y - 18.0)
+	_bars.draw_rect(Rect2(pos, Vector2(w, 6)), Color(0.02, 0.03, 0.04, 0.85))
+	_bars.draw_rect(Rect2(pos, Vector2(w * float(player.xp) / maxf(player.xp_needed, 1), 6)), Color(0.5, 0.78, 0.9))
+	_bars.draw_rect(Rect2(pos, Vector2(w, 6)), Color(0.18, 0.24, 0.28), false, 1.0)
+	var font := ThemeDB.fallback_font
+	_bars.draw_string(font, pos + Vector2(0, -4), "Stufe %d" % player.level, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.65, 0.8, 0.88))
 
 
 ## The skill row at the bottom: current slot highlighted, its bar fills until it fires.
@@ -121,7 +150,7 @@ func _draw_rotation() -> void:
 	var box := 40.0
 	var gap := 6.0
 	var total := n * box + (n - 1) * gap
-	var origin := Vector2((_bars.size.x - total) * 0.5, _bars.size.y - box - 34.0)
+	var origin := Vector2((_bars.size.x - total) * 0.5, _bars.size.y - box - 42.0)
 	for i in n:
 		var id := row.loadout[i]
 		var r := Rect2(origin + Vector2(i * (box + gap), 0), Vector2(box, box))

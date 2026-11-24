@@ -86,7 +86,7 @@ func tick(delta: float, player: Player) -> void:
 			return
 		player.fire_skill(s, pending, target)
 		pending = {}
-	last_weight = float(s["weight"])
+	last_weight = float(s["weight"]) * maxf(player.stat("weight_mult"), 0.4)
 	timer = last_weight
 	fired.emit(index)
 	index = (index + 1) % loadout.size()

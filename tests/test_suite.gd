@@ -23,6 +23,9 @@ func _run() -> void:
 	await _test_camp()
 	await _test_auto_shot()
 	await _test_rotation()
+	await _test_progression()
+	await _test_new_foes()
+	_test_arena()
 	print("Tests: %d checks, %d failures" % [_checks, _failures])
 	finished.emit(_failures)
 
@@ -212,3 +215,90 @@ func _test_rotation() -> void:
 	_check(level.get_children().filter(func(n: Node) -> bool: return n is Arrow).size() == before + 2, "extra-arrow prep adds an arrow")
 	Game.loadout = SkillRotation.sanitize([])
 	level.queue_free()
+
+
+func _test_progression() -> void:
+	var level := Level.new()
+	add_child(level)
+	level.generate(5, Balance.section("run"))
+	var player := Player.new()
+	player.sound_parent = level
+	player.position = level.cell_center(level.rooms[0].get_center())
+	level.add_child(player)
+	await get_tree().physics_frame
+	var need := player.xp_needed
+	player.add_xp(need)
+	_check(player.level == 2 and player.pending_levels == 1, "enough souls raise the level")
+	_check(Player.xp_for_level(3) > Player.xp_for_level(2), "each level needs more souls")
+	var before := player.stat("dmg_mult")
+	player.take_boon("wrath")
+	_check(player.stat("dmg_mult") > before and player.boon_level("wrath") == 1, "boon Zorn raises damage")
+	var hp0 := player.max_hp
+	player.take_boon("hide")
+	_check(player.max_hp == hp0 + 20.0, "boon Grabhaut raises max life")
+	var choices := LevelUpPanel.roll(player, 3)
+	_check(choices.size() == 3, "level-up offers three boons")
+	# Souls drift to the player and are absorbed.
+	player.peaceful = false
+	var xp0 := player.xp
+	var soul := Soul.new()
+	soul.value = 2
+	soul.position = player.position + Vector2(30, 0)
+	level.add_child(soul)
+	for i in 40:
+		await get_tree().physics_frame
+	_check(player.xp == xp0 + 2, "a nearby soul is collected")
+	level.queue_free()
+
+
+func _test_new_foes() -> void:
+	var level := Level.new()
+	add_child(level)
+	level.generate(9, Balance.section("run"))
+	var foes := Balance.section("enemies")
+	var room := level.rooms[0]
+	var center := level.cell_center(room.get_center())
+	# Cultist smothers a lit brazier nearby.
+	var brazier := Brazier.new()
+	brazier.position = center
+	level.add_child(brazier)
+	var c := Enemy.new()
+	c.setup(foes["cultist"], level, null, 2, "cultist")
+	c.position = center + Vector2(40, 0)
+	level.add_child(c)
+	await get_tree().physics_frame
+	for i in 60 * 5:
+		await get_tree().physics_frame
+		if not brazier.is_lit():
+			break
+	_check(not brazier.is_lit(), "a cultist puts out a brazier")
+	# Brute: slam hits a player standing beside it.
+	var player := Player.new()
+	player.sound_parent = level
+	player.position = center + Vector2(-60, 0)
+	level.add_child(player)
+	var b := Enemy.new()
+	b.setup(foes["brute"], level, player, 3, "brute")
+	b.position = player.position + Vector2(38, 0)
+	level.add_child(b)
+	await get_tree().physics_frame
+	var hp0 := player.hp
+	for i in 60 * 3:
+		await get_tree().physics_frame
+		if player.hp < hp0:
+			break
+	_check(player.hp < hp0, "a brute's slam hurts the player")
+	_check(float(foes["brute"]["max_hp"]) > float(foes["ghoul"]["max_hp"]), "brutes are much tougher than ghouls")
+	level.queue_free()
+
+
+func _test_arena() -> void:
+	var level := Level.new()
+	add_child(level)
+	level.generate_painted(1, Balance.data_file("res://data/maps.json")["basalt"], Balance.section("run"))
+	_check(level.is_open(level.start_cell) and level.is_open(level.exit_cell), "arena start/exit are walkable")
+	var path := level.find_path(level.cell_center(level.start_cell), level.cell_center(level.exit_cell))
+	_check(path.size() > 1, "arena exit is reachable from the start")
+	_check(level.spawn_points(10, 9).size() >= 8, "arena has room for enemies")
+	_check(level.brazier_points(3).size() == 3, "arena braziers come from the map")
+	level.free()
